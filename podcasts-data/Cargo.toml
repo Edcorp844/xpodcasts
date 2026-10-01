@@ -1,0 +1,38 @@
+[package]
+authors = ["Jordan Petridis <jpetridis@gnome.org>"]
+name = "podcasts-data"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+ammonia = "4"
+anyhow = { workspace = true }
+async-channel = { workspace = true }
+base64 = "0.22"
+bytes = "1"
+chrono = { workspace = true }
+derive_builder = "0.20"
+diesel = { version = "2", features = ["chrono", "sqlite", "r2d2"] }
+diesel_migrations = { version = "2", features = ["sqlite"] }
+futures-util = "0.3"
+glob = "0.3"
+http = "1"
+log = { workspace = true }
+mime_guess = "2"
+oo7 = "0.6.0-alpha"
+reqwest = { workspace = true, features = ["json", "stream"] }
+rfc822_sanitizer = "0.3"
+rss = "2"
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+tempfile = "3"
+thiserror = "2"
+tokio = { workspace = true }
+url = { workspace = true }
+xdg = "3"
+xml-rs = "1.0"
+
+[dev-dependencies]
+serde_json = "1"
+maplit = "1"
+http-test-server = "2.1.1"

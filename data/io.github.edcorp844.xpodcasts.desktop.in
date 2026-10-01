@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=XPodcasts
+Exec=xpodcasts
+Icon=io.github.edcorp844.xpodcasts
+Terminal=false
+Type=Application
+Categories=Utility;
+Keywords=GTK;
+StartupNotify=true
+DBusActivatable=true

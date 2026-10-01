@@ -1,0 +1,6 @@
+# List of source files containing translatable strings.
+# Please keep this file sorted alphabetically.
+data/io.github.edcorp844.xpodcasts.desktop.in
+data/io.github.edcorp844.xpodcasts.metainfo.xml.in
+data/io.github.edcorp844.xpodcasts.gschema.xml
+src/window.ui

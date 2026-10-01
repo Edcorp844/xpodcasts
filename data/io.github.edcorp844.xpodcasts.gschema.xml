@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="xpodcasts">
+	<enum id="org.flame.podcasts.ExternalControlsMode">
+		<value nick="forward-back" value="0"/>
+		<value nick="next-previous" value="1"/>
+    	</enum>
+
+	<schema id="io.github.edcorp844.xpodcasts" path="/io/github/edcorp844/xpodcasts/">
+		 <key name="library-auto-sync" type="b">
+            <default>true</default>
+            <summary>Automatically update Followed shows</summary>
+        </key>
+
+        <key name="search-platforms" type="as">
+            <default>["fyyd.de", "itunes.apple.com"]</default>
+            <summary>Search queries will be sent to these platforms</summary>
+        </key>
+
+        <key name="continuous-playback" type="b">
+            <default>true</default>
+            <summary>Continue playing after an episode ends</summary>
+        </key>
+
+        <key name="skip-foward-seconds" type="i">
+            <default>30</default>
+            <summary>Number of seconds to skip forward</summary>
+        </key>
+
+        <key name="skip-backward-seconds" type="i">
+            <default>15</default>
+            <summary>Number of seconds to skip backward</summary>
+        </key>
+
+        <key name="external-controls-mode" enum="org.flame.podcasts.ExternalControlsMode">
+            <default>"forward-back"</default>
+            <summary>Whether media keys skip forward/back or jump to next/previous episode</summary>
+        </key>
+	</schema>
+</schemalist>
