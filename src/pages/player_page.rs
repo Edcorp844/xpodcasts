@@ -57,6 +57,7 @@ impl Component for PlayerPage {
     view! {
         #[name="page"]
         adw::NavigationPage {
+            set_title: "player",
             inline_css: "background: rgba(0,0,0,1);",
 
             #[wrap(Some)]

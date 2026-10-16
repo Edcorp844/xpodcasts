@@ -343,6 +343,7 @@ impl Component for PodcastPage {
 
     view! {
         adw::NavigationPage {
+            set_title : &model.podcast.title,
             #[wrap(Some)]
             set_child = &adw::ToolbarView {
 
@@ -386,12 +387,7 @@ impl Component for PodcastPage {
                                         set_halign: gtk::Align::Fill,
                                         set_valign: gtk::Align::Fill,
 
-                                        inline_css: "
-                                            background-color: mix(@window_bg_color, @card_fg_color, 0.1);
-                                            border-radius: 16px;
-                                            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
-                                            border: 1px solid alpha(@borders, 0.8);
-                                        ",
+                                        inline_css: "background-color: mix(@window_bg_color, @card_fg_color, 0.1); border-radius: 16px;box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32); border: 1px solid alpha(@borders, 0.8);",
 
                                         gtk::Label {
                                             #[watch]

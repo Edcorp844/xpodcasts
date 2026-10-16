@@ -252,7 +252,7 @@ impl FactoryComponent for DownloadedEpisodeListItem {
                         add_css_class: "frame",
                         set_halign: gtk::Align::Fill,
                         set_valign: gtk::Align::Fill,
-                        inline_css: "background-color: mix(var(--window-bg-color), var(--card-fg-color), 0.1); border-radius: 16px; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32); ",
+                        inline_css: "background-color: mix(var(--window-bg-color), var(--card-fg-color), 0.1); border-radius: 16px; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);",
 
                         gtk::Label {
                             #[watch]

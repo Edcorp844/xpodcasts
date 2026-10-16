@@ -3,10 +3,10 @@ use std::path::Path;
 use gst::{CoreError, ResourceError, StreamError};
 use gst_play::{Play, PlaySignalAdapter, PlayState};
 use gtk::gio::File;
-use podcasts_data::{EpisodeId, EpisodeModel, dbqueries};
+use podcasts_data::{dbqueries, errors::DataError, EpisodeId, EpisodeModel};
 use relm4::{
-    Worker,
     gtk::{gio::prelude::FileExt, glib::MainContext},
+    Worker,
 };
 use url::Url;
 
@@ -18,11 +18,18 @@ use crate::{
         gst_errors::{handel_gst_core_error, handel_gst_resource_error, handel_gst_stream_error},
         play_list::PlayList,
     },
-    workers::{
-        action_worker::service::MprisCommand,
-        gstremer_worker::worker::GStreamerWorkerOutput::NotifyError,
-    },
+    workers::gstremer_worker::worker::GStreamerWorkerOutput::NotifyError,
 };
+
+#[derive(Debug)]
+pub enum MprisCommand {
+    ChangePlaybackState(gst_play::PlayState),
+    UpdateMetadata {
+        title: String,
+        show_title: String,
+        art_url: Option<String>,
+    },
+}
 
 pub struct GStreamerWorker {
     pub(crate) player: Play,
@@ -433,6 +440,13 @@ impl Worker for GStreamerWorker {
                 }
             }
             GStreamerWorkerInput::PlayEpisode(episode_id) => {
+                if let Some(current_episode_id) = self.play_list.current() {
+                    if let Err(error) = self.save_current_episode_play_position(current_episode_id)
+                    {
+                        let _ =
+                            sender.output(GStreamerWorkerOutput::NotifyError(error.to_string()));
+                    }
+                }
                 if self.play_list.current() == Some(episode_id) {
                     sender.input(GStreamerWorkerInput::TogglePlayBack);
                 } else {
@@ -442,7 +456,7 @@ impl Worker for GStreamerWorker {
 
                     let _ = sender.output(GStreamerWorkerOutput::SetCurrentEpisode(episode_id));
                     match dbqueries::get_episode_from_id(episode_id) {
-                        Ok(episode) => {
+                        Ok(mut episode) => {
                             let uri = if let Some(path) = episode.local_uri() {
                                 if Path::new(path).exists() {
                                     let file_uri = File::for_path(path).uri();
@@ -490,6 +504,11 @@ impl Worker for GStreamerWorker {
                                 show_title,
                                 art_url,
                             });
+
+                            if let Err(error) = episode.set_play_position_and_save(0) {
+                                let _ = sender
+                                    .output(GStreamerWorkerOutput::NotifyError(error.to_string()));
+                            };
                         }
                         Err(error) => {
                             let _ = sender
@@ -498,6 +517,15 @@ impl Worker for GStreamerWorker {
                     };
                 }
             }
+        }
+    }
+}
+
+impl GStreamerWorker {
+    fn save_current_episode_play_position(&self, episode_id: EpisodeId) -> Result<(), DataError> {
+        match dbqueries::get_episode_from_id(episode_id) {
+            Ok(mut episode) => episode.set_play_position_and_save(self.current_duration_ms as i32),
+            Err(error) => Err(error),
         }
     }
 }

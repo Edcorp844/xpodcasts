@@ -1,13 +1,14 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Deref, sync::Arc};
 
 use adw::prelude::*;
 
 use gst_play::PlayState;
 use podcasts_data::{
-    EpisodeId, dbqueries,
-    discovery::{FoundPodcast, SearchError, search},
+    dbqueries,
+    discovery::{search, FoundPodcast, SearchError},
+    EpisodeId,
 };
-use relm4::{Component, ComponentParts, ComponentSender, prelude::*};
+use relm4::{prelude::*, Component, ComponentParts, ComponentSender};
 use uuid::Uuid;
 
 use crate::{
@@ -17,7 +18,10 @@ use crate::{
     },
     pages::podcast::{PodcastPage, PodcastPageOutput},
     settings::GenaralSettings,
-    workers::action_worker::worker::ActionResult,
+    workers::action_worker::{
+        action::SearchActionResultCategory,
+        worker::{ActionResult, PODCAST_SEARCH_ID},
+    },
 };
 
 // 1. Define the possible pages you want to visit across your app
@@ -28,18 +32,13 @@ pub enum PageTarget {
     EpisodeDescription,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ResultCategory {
-    Podcast,
-    library,
-}
-
 #[derive(Debug)]
 pub struct SearchPage {
     pub current_page: PageTarget,
-    result_category: ResultCategory,
+    result_category: SearchActionResultCategory,
     pub active_pages: HashMap<String, PageController>,
     podcast_results_widget: Controller<PodcastResults>,
+    task_id: Uuid,
 }
 
 #[derive(Debug)]
@@ -48,7 +47,7 @@ pub enum SearchPageInput {
     PushPage(String),
     OpenPodcast(FoundPodcast),
     PopPage,
-    SwitchResultCategory(ResultCategory),
+    SwitchResultCategory(SearchActionResultCategory),
     PodcastsLoaded(Result<Vec<FoundPodcast>, SearchError>),
     UpdateQuery(String),
     TriggerSearch(String),
@@ -64,6 +63,11 @@ pub enum SearchPageInput {
 
 #[derive(Debug)]
 pub enum SearchPageOutput {
+    RequestSearch {
+        task_id: Uuid,
+        search_text: String,
+        search_category: SearchActionResultCategory,
+    },
     UpdateISSearching(bool),
     TogglePlay(EpisodeId),
     NotifyError(String),
@@ -103,9 +107,10 @@ impl Component for SearchPage {
                 });
         let model = Self {
             current_page: PageTarget::MainPodcastsList,
-            result_category: ResultCategory::Podcast,
+            result_category: SearchActionResultCategory::Podcast,
             active_pages: HashMap::new(),
             podcast_results_widget,
+            task_id: Uuid::new_v4(),
         };
 
         let widgets = view_output!();
@@ -135,23 +140,10 @@ impl Component for SearchPage {
             },
 
             SearchPageInput::TriggerSearch(text) => {
-                self.podcast_results_widget
-                    .emit(PodcastResultsInput::SearchBegan);
-                let _ = sender.output(SearchPageOutput::UpdateISSearching(true));
-                let search_text = text.clone();
-                println!("Searching: {search_text}");
-                sender.oneshot_command(async move {
-                    let search_platforms = GenaralSettings::new().get_search_platforms();
-                    for id in search_platforms {
-                        match dbqueries::set_discovery_setting(&id, true) {
-                            Err(e) => {
-                                println!("Error settings: {}", e);
-                            }
-                            Ok(_) => {}
-                        }
-                    }
-
-                    SearchPageCmdInput::Podcasts(search(&search_text).await)
+                let _ = sender.output(SearchPageOutput::RequestSearch {
+                    task_id: self.task_id,
+                    search_text: text.clone(),
+                    search_category: self.result_category,
                 });
             }
             SearchPageInput::UpdateQuery(_text) => {}
@@ -198,9 +190,9 @@ impl Component for SearchPage {
             SearchPageInput::SwitchResultCategory(category) => {
                 self.result_category = *category;
             }
-            SearchPageInput::DownloadStarted(episode_id) => todo!(),
-            SearchPageInput::DownloadCancled(episode_id) => todo!(),
-            SearchPageInput::DownloadProgress(episode_id, _) => todo!(),
+            SearchPageInput::DownloadStarted(episode_id) => {},
+            SearchPageInput::DownloadCancled(episode_id) => {},
+            SearchPageInput::DownloadProgress(episode_id, _) => {},
             SearchPageInput::DownloadFinished(episode_id) => {
                 for (_, page) in &self.active_pages {
                     page.notify_download_finished(episode_id.clone());
@@ -222,6 +214,19 @@ impl Component for SearchPage {
                 }
             }
             SearchPageInput::ActionFinished(uuid, result) => {
+                if uuid == &self.task_id {
+                    if let Some(podcasts) = result.downcast_ref::<Vec<FoundPodcast>>() {
+                        println!("Search Results: {:?}", podcasts);
+                        self.podcast_results_widget
+                            .emit(PodcastResultsInput::Results(podcasts.clone()));
+                    } else {
+                        println!(
+                            "downcast failed; inner type_id = {:?}",
+                            result.as_ref().type_id()
+                        );
+                    }
+                }
+
                 for (_, page) in &self.active_pages {
                     page.notify_action_finished(uuid.clone(), result.clone());
                 }
@@ -229,19 +234,6 @@ impl Component for SearchPage {
         }
 
         self.update(message, sender, root);
-    }
-
-    fn update_cmd(
-        &mut self,
-        message: Self::CommandOutput,
-        sender: ComponentSender<Self>,
-        _: &Self::Root,
-    ) {
-        match message {
-            SearchPageCmdInput::Podcasts(data) => {
-                sender.input(SearchPageInput::PodcastsLoaded(data))
-            }
-        }
     }
 
     view! {
@@ -303,8 +295,8 @@ impl Component for SearchPage {
                                 connect_active_name_notify[sender] => move |group| {
                                     if let Some(active_tab) = group.active_name() {
                                         match active_tab.as_str() {
-                                            "podcasts" => {  sender.input(SearchPageInput::SwitchResultCategory(ResultCategory::Podcast)) }
-                                            "library" => { sender.input(SearchPageInput::SwitchResultCategory(ResultCategory::Podcast))  }
+                                            "podcasts" => {  sender.input(SearchPageInput::SwitchResultCategory(SearchActionResultCategory::Podcast)) }
+                                            "library" => { sender.input(SearchPageInput::SwitchResultCategory(SearchActionResultCategory::Library))  }
                                             _ => {}
                                         }
                                     }

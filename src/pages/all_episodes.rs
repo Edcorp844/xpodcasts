@@ -9,12 +9,12 @@ use adw::prelude::*;
 use chrono::Datelike;
 use gst_play::PlayState;
 use podcasts_data::{Episode, EpisodeId, ShowId};
-use relm4::{Component, prelude::*};
+use relm4::{prelude::*, Component};
 use uuid::Uuid;
 
 use crate::{
     components::episode_group::{GroupedEpisodes, GroupedEpisodesInput, GroupedEpisodesOutput},
-    workers::action_worker::worker::{Action, ActionResult},
+    workers::action_worker::{action::Action, worker::ActionResult},
 };
 
 /// Shared, mutable state that both the component's normal update loop and

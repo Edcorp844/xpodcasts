@@ -3,17 +3,17 @@ use std::sync::Arc;
 use adw::prelude::*;
 use gst_play::PlayState;
 use podcasts_data::{
-    EpisodeId, Show, ShowId,
     dbqueries::{self, ShowFilter},
     errors::DataError,
+    EpisodeId, Show, ShowId,
 };
-use relm4::{Component, ComponentParts, ComponentSender, prelude::*};
+use relm4::{prelude::*, Component, ComponentParts, ComponentSender};
 use uuid::Uuid;
 
 use crate::{
     components::show_card::{ShowCard, ShowCardOutput},
     pages::show::{ShowPage, ShowPageInput, ShowPageOutput},
-    workers::action_worker::worker::{Action, ActionResult},
+    workers::action_worker::{action::Action, worker::ActionResult},
 };
 
 #[derive(Debug)]
@@ -237,7 +237,7 @@ impl Component for ShowsPage {
             #[name = "nav_view"]
             set_child = &adw::NavigationView{
                 add=&adw::NavigationPage {
-
+                    set_title: "Shows",
                     #[wrap(Some)]
                     set_child = &adw::ToolbarView {
                         #[wrap(Some)]

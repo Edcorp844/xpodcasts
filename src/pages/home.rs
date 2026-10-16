@@ -1,22 +1,30 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use gst_play::PlayState;
-use podcasts_data::discovery::{ALL_PLATFORM_IDS, FoundPodcast, SearchError, search};
-use podcasts_data::{EpisodeId, dbqueries};
+use podcasts_data::discovery::{search, FoundPodcast, SearchError, ALL_PLATFORM_IDS};
+use podcasts_data::{dbqueries, EpisodeId};
 use relm4::adw::prelude::*;
 use relm4::prelude::*;
 use uuid::Uuid;
 
 use crate::app_navigation_ext::PageController;
 use crate::components::found_podcast_ui::{FoundCardOutput, FoundPodcastsCard};
+use crate::components::unfinished_episodes_section::{
+    UnfinishedEpisodesSection, UnfinishedEpisodesSectionInput,
+};
 use crate::pages::podcast::{PodcastPage, PodcastPageOutput};
+use crate::workers::action_worker::action::{Action, HomeFeedData};
 use crate::workers::action_worker::worker::ActionResult;
 
 #[derive(Debug)]
 pub struct HomePage {
     pub podcasts: FactoryVecDeque<FoundPodcastsCard>,
+
     pub is_loading: bool,
     pub active_pages: HashMap<String, PageController>,
+    task_id: Uuid,
+    unfinished_episodes_controller: Controller<UnfinishedEpisodesSection>,
 }
 
 #[derive(Debug)]
@@ -42,7 +50,8 @@ pub enum HomePageInput {
 }
 
 #[derive(Debug)]
-pub enum HomPageOutPut {
+pub enum HomPageOutput {
+    Execute(Uuid, Action),
     ToggleSideBar,
     Subscribe(String),
     TogglePlay(EpisodeId),
@@ -59,7 +68,7 @@ pub enum HomPageOutPut {
 impl Component for HomePage {
     type Init = ();
     type Input = HomePageInput;
-    type Output = HomPageOutPut;
+    type Output = HomPageOutput;
     type CommandOutput = HomePageCommand;
 
     view! {
@@ -73,10 +82,9 @@ impl Component for HomePage {
                 // --- PAGE 1: Root List View ---
                 #[name = "root_page"]
                 add = &adw::NavigationPage {
-
+                    set_title: "Home",
                     #[wrap(Some)]
                     set_child = &adw::ToolbarView {
-
                         #[wrap(Some)]
                         set_content = &gtk::ScrolledWindow {
                                 set_vexpand : true,
@@ -96,6 +104,8 @@ impl Component for HomePage {
 
                                             add_css_class: "title-1"
                                         },
+
+                                        model.unfinished_episodes_controller.widget(){},
 
                                         #[local_ref]
                                         podcast_grid -> gtk::FlowBox {
@@ -143,6 +153,9 @@ impl Component for HomePage {
             gtk::glib::ControlFlow::Continue
         });
 
+        let unfinished_episodes_controller =
+            UnfinishedEpisodesSection::builder().launch(()).detach();
+
         let model = HomePage {
             podcasts: FactoryVecDeque::builder().launch(grid).forward(
                 sender.input_sender(),
@@ -155,6 +168,8 @@ impl Component for HomePage {
             ),
             active_pages: HashMap::new(),
             is_loading: true,
+            task_id: Uuid::new_v4(),
+            unfinished_episodes_controller,
         };
 
         // Resolve the reference for the local_ref macro parameter mapping step
@@ -175,6 +190,7 @@ impl Component for HomePage {
     ) {
         match message {
             HomePageInput::FetchPodcasts => {
+                let _ = sender.output(HomPageOutput::Execute(self.task_id, Action::FetchHomeFeed));
                 let search_texts = vec!["uganda", "news", "footboall", "Jesus", "phaneroo"];
 
                 for text in search_texts {
@@ -195,7 +211,7 @@ impl Component for HomePage {
             }
 
             HomePageInput::Subscribe(feed) => {
-                let _ = sender.output(HomPageOutPut::Subscribe(feed));
+                let _ = sender.output(HomPageOutput::Subscribe(feed));
             }
             HomePageInput::PodcastsLoaded(podcasts) => {
                 match podcasts {
@@ -208,7 +224,7 @@ impl Component for HomePage {
                     }
                     Err(e) => {
                         println!("Error: {}", e);
-                        let _ = sender.output(HomPageOutPut::NotifyError(format!(
+                        let _ = sender.output(HomPageOutput::NotifyError(format!(
                             "Podcast Search Error: {}",
                             e.to_string()
                         )));
@@ -222,26 +238,26 @@ impl Component for HomePage {
                     sender.output_sender(),
                     |msg| match msg {
                         PodcastPageOutput::TogglePlay(episode) => {
-                            HomPageOutPut::TogglePlay(episode)
+                            HomPageOutput::TogglePlay(episode)
                         }
-                        PodcastPageOutput::Subscribe(feed) => HomPageOutPut::Subscribe(feed),
-                        PodcastPageOutput::NotifyError(error) => HomPageOutPut::NotifyError(error),
+                        PodcastPageOutput::Subscribe(feed) => HomPageOutput::Subscribe(feed),
+                        PodcastPageOutput::NotifyError(error) => HomPageOutput::NotifyError(error),
                         PodcastPageOutput::RequestDownload(episode_id) => {
-                            HomPageOutPut::RequestDownload(episode_id)
+                            HomPageOutput::RequestDownload(episode_id)
                         }
                         PodcastPageOutput::CancleDownload(episode_id) => {
-                            HomPageOutPut::CancleDownload(episode_id)
+                            HomPageOutput::CancleDownload(episode_id)
                         }
                         PodcastPageOutput::SetPlayNext(episode_id) => {
-                            HomPageOutPut::SetPlayNext(episode_id)
+                            HomPageOutput::SetPlayNext(episode_id)
                         }
                         PodcastPageOutput::AddToPlaylist(episode_id) => {
-                            HomPageOutPut::AddToPlaylist(episode_id)
+                            HomPageOutput::AddToPlaylist(episode_id)
                         }
                         PodcastPageOutput::RequestDeleteEpisode(episode_id) => {
-                            HomPageOutPut::RequestDeleteEpisode(episode_id)
+                            HomPageOutput::RequestDeleteEpisode(episode_id)
                         }
-                        _ => HomPageOutPut::NotifyError(format!("")),
+                        _ => HomPageOutput::NotifyError(format!("")),
                     },
                 );
                 let controller = PageController::Podcast(podcast_page);
@@ -287,8 +303,28 @@ impl Component for HomePage {
                 }
             }
             HomePageInput::ActionFinished(uuid, result) => {
-                for (_, page) in &self.active_pages {
-                    page.notify_action_finished(uuid, result.clone());
+                if uuid == self.task_id {
+                    if let Some(feed_data) = result.downcast_ref::<HomeFeedData>() {
+                        self.unfinished_episodes_controller.emit(
+                            UnfinishedEpisodesSectionInput::SetEpisodes(
+                                feed_data.get_unfineshedEpisodes(),
+                            ),
+                        );
+                    }
+                    // if let Ok(feed_data_arc) = result.downcast::<HomeFeedData>() {
+                    //     if let Ok(feed_data) = Arc::try_unwrap(feed_data_arc) {
+                    //         print!("home fed data: {feed_data:?}");
+                    //         self.unfinished_episodes_controller.emit(
+                    //             UnfinishedEpisodesSectionInput::SetEpisodes(
+                    //                 feed_data.get_unfineshedEpisodes(),
+                    //             ),
+                    //         );
+                    //     }
+                    // }
+                } else {
+                    for (_, page) in &self.active_pages {
+                        page.notify_action_finished(uuid, result.clone());
+                    }
                 }
             }
         }

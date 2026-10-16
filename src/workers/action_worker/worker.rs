@@ -5,14 +5,20 @@ use std::{
 };
 
 use podcasts_data::{
-    Episode, FEED_MANAGER, ShowId, Source,
     dbqueries::{self, ShowFilter},
+    discovery::search,
     nextcloud_sync::{self, SyncError, SyncPolicy, SyncResult},
+    Episode, EpisodeModel, Source, FEED_MANAGER,
 };
+
 use relm4::{ComponentSender, Worker};
 use uuid::Uuid;
 
-use crate::pages::recents::TimeBucket;
+use crate::{
+    pages::recents::TimeBucket,
+    settings::GenaralSettings,
+    workers::action_worker::action::{Action, HomeFeedData, SearchActionResultCategory},
+};
 
 /// Type-erased, shareable result payload. Different `Action` variants can
 /// return completely different shapes (String, Vec<Show>, Result<T, E>,
@@ -24,19 +30,10 @@ pub type ActionResult = Arc<dyn Any + Send + Sync>;
 /// exactly once on first access and identical everywhere in the app —
 /// any file can reference these directly without needing a live
 /// `ActionWorker` instance.
-pub static SUBSCRIBE_ACTION_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
+//pub static SUBSCRIBE_ACTION_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
 pub static QUICK_SYNC_NEXTCLOUD_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
 pub static REFRESH_ALL_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Action {
-    Subscribe(String),
-    FetchShows,
-    FetchRecents,
-    FetchShowEpisodes(ShowId),
-    QuickSyncNextcloud,
-    RefreshAllViews,
-}
+pub static PODCAST_SEARCH_ID: LazyLock<Uuid> = LazyLock::new(Uuid::new_v4);
 
 pub struct ActionWorker {
     pending_actions: HashMap<Uuid, Action>,
@@ -209,7 +206,9 @@ impl ActionWorker {
                     Err(SyncError::DownloadedUpdateForEpisodeNotInDb) => {
                         let errors = FEED_MANAGER.full_refresh().await;
                         let errors = FEED_MANAGER.retry_errors_full(errors).await;
-                        let _ = FEED_MANAGER.retry_errors_full(errors).await;
+                        let errors = FEED_MANAGER.retry_errors_full(errors).await;
+
+                        error!("Feed Manager retry errors : {errors:?}");
 
                         match nextcloud_sync::sync(SyncPolicy::IgnoreMissingEpisodes).await {
                             Ok(_) => {
@@ -223,8 +222,9 @@ impl ActionWorker {
                             }
                         }
                     }
-                    Err(e) => {
-                        let msg = format!("Sync failed {e}");
+                    Err(error) => {
+                        error!("Next Clous sync Error: {error:?}");
+                        let msg = format!("Sync failed {error}");
                         let _ = sender.output(ActionWorkerOutput::NotifyError(msg.clone()));
                         Err(msg)
                     }
@@ -267,6 +267,7 @@ impl ActionWorker {
                         sender.input(ActionWorkerInput::TaskFinished(id, action_result));
                     }
                     Err(err) => {
+                        error!("Error fecting Episodes : {err:?}");
                         let _ = sender.output(ActionWorkerOutput::NotifyError(err.to_string()));
                     }
                 };
@@ -278,13 +279,106 @@ impl ActionWorker {
                         sender.input(ActionWorkerInput::TaskFinished(id, action_result));
                     }
                     Err(err) => {
+                        error!("Error fecting Episodes from show {show:?}: {err:?}");
                         let _ = sender.output(ActionWorkerOutput::NotifyError(err.to_string()));
                     }
                 },
                 Err(err) => {
+                    error!("Error getting podcast from show id {show_id:?}: {err:?}");
                     let _ = sender.output(ActionWorkerOutput::NotifyError(err.to_string()));
                 }
             },
+            Action::Search(search_text, search_action_result_category) => {
+                match search_action_result_category {
+                    SearchActionResultCategory::Podcast => {
+                        let search_platforms = GenaralSettings::new().get_search_platforms();
+                        for id in search_platforms {
+                            match dbqueries::set_discovery_setting(&id, true) {
+                                Err(error) => {
+                                    error!("Error Setting Search Platforms: {error:?}");
+                                    let _ = sender
+                                        .output(ActionWorkerOutput::NotifyError(error.to_string()));
+                                }
+                                Ok(_) => {
+                                    info!("Search platforms set sucessfully");
+                                }
+                            }
+                        }
+
+                        match search(&search_text).await {
+                            Ok(data) => {
+                                let action_result: ActionResult = Arc::new(data);
+                                sender.input(ActionWorkerInput::TaskFinished(id, action_result));
+                            }
+                            Err(error) => {
+                                error!("Error Searching: {error:?}");
+                                let _ = sender
+                                    .output(ActionWorkerOutput::NotifyError(error.to_string()));
+                            }
+                        }
+                    }
+                    SearchActionResultCategory::Library => {
+                        let _ = sender.output(ActionWorkerOutput::NotifyError(String::from(
+                            "Library serach not yet implememnted",
+                        )));
+                    }
+                }
+            }
+            Action::FetchDownloads => {
+                let filter = ShowFilter {
+                    any_downloaded: Some(true),
+                    completed: Some(false),
+                    title_or_description: None,
+                    reverse_order: true,
+                };
+
+                match dbqueries::get_podcasts_filter(&[], &filter) {
+                    Ok(shows) => {
+                        for show in shows.iter() {
+                            let filter = dbqueries::EpisodeFilter {
+                                downloaded: Some(true),
+                                played: Some(false),
+                                search: None,
+                                reverse_order: false,
+                            };
+
+                            match dbqueries::get_pd_episode_widgets(show, &filter) {
+                                Ok(episodes) => {
+                                    let action_result: ActionResult = Arc::new(episodes);
+                                    sender
+                                        .input(ActionWorkerInput::TaskFinished(id, action_result));
+                                }
+                                Err(error) => {
+                                    error!("Error getting downloaded episodes: {error:?}");
+                                    let _ = sender
+                                        .output(ActionWorkerOutput::NotifyError(error.to_string()));
+                                }
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        error!("Error getting podcats filter: {error:?}");
+                        let _ = sender.output(ActionWorkerOutput::NotifyError(error.to_string()));
+                    }
+                }
+            }
+            Action::FetchHomeFeed => {
+                let unfinished = match dbqueries::get_episodes() {
+                    Ok(episodes) => episodes
+                        .into_iter()
+                        .filter(|ep| ep.play_position() > 0 && ep.played().is_none())
+                        .collect(),
+                    Err(error) => {
+                        let _ = sender.output(ActionWorkerOutput::NotifyError(error.to_string()));
+                        Vec::new()
+                    }
+                };
+
+                let home_feed_data = HomeFeedData::new(unfinished);
+
+                let action_result: ActionResult = Arc::new(home_feed_data);
+                sender.input(ActionWorkerInput::TaskFinished(id, action_result));
+            }
         }
     }
 }

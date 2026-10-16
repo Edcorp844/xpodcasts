@@ -3,13 +3,13 @@ use std::{collections::BTreeMap, sync::Arc};
 use adw::prelude::*;
 use chrono::{Datelike, Duration, Local, NaiveDateTime};
 use gst_play::PlayState;
-use podcasts_data::{Episode, EpisodeId, dbqueries};
-use relm4::{Component, prelude::*};
+use podcasts_data::{Episode, EpisodeId};
+use relm4::{prelude::*, Component};
 use uuid::Uuid;
 
 use crate::{
     components::episode_group::{GroupedEpisodes, GroupedEpisodesInput, GroupedEpisodesOutput},
-    workers::action_worker::worker::{Action, ActionResult},
+    workers::action_worker::{action::Action, worker::ActionResult},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -177,7 +177,7 @@ impl Component for RecentlyUpdatedPage {
         };
 
         let widgets = view_output!();
-        sender.output(RecentlyUpdatedPageOutput::ExcuteAction(
+        let _ = sender.output(RecentlyUpdatedPageOutput::ExcuteAction(
             model.task_id,
             Action::FetchRecents,
         ));

@@ -1,26 +1,23 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use adw::prelude::*;
 use gst_play::PlayState;
-use podcasts_data::{
-    EpisodeId, EpisodeModel, EpisodeWidgetModel,
-    dbqueries::{self, ShowFilter},
-};
-use relm4::{Component, prelude::*};
+use podcasts_data::{EpisodeId, EpisodeModel, EpisodeWidgetModel};
+use relm4::{prelude::*, Component};
 use uuid::Uuid;
 
 use crate::{
     components::downloaded_episode_list_item::{
         DownloadedEpisodeListItem, DownloadedEpisodeListItemInput, DownloadedEpisodeListItemOutput,
     },
-    workers::action_worker::worker::ActionResult,
+    workers::action_worker::{action::Action, worker::ActionResult},
 };
 
 #[derive(Debug)]
 pub struct DownloadsPage {
     episodes: FactoryVecDeque<DownloadedEpisodeListItem>,
     index_by_id: HashMap<EpisodeId, relm4::factory::DynamicIndex>,
-    is_loading: bool,
+    task_id: Uuid,
 }
 
 #[derive(Debug, Clone)]
@@ -40,6 +37,7 @@ pub enum DownloadsPageInput {
 
 #[derive(Debug, Clone)]
 pub enum DownloadsPageOutput {
+    Execute(Uuid, Action),
     TogglePlay(EpisodeId),
     NotifyError(String),
     RequestDeleteEpisode(EpisodeId),
@@ -129,8 +127,8 @@ impl Component for DownloadsPage {
                     }
                 },
             ),
-            is_loading: true,
             index_by_id: HashMap::new(),
+            task_id: Uuid::new_v4(),
         };
 
         let episodes_container = model.episodes.widget();
@@ -145,45 +143,15 @@ impl Component for DownloadsPage {
     fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>, _root: &Self::Root) {
         match message {
             DownloadsPageInput::FetchDownloads => {
-                self.is_loading = true;
-                let filter = ShowFilter {
-                    any_downloaded: Some(true),
-                    completed: None,
-                    title_or_description: None,
-                    reverse_order: true,
-                };
-                match dbqueries::get_podcasts_filter(&[], &filter) {
-                    Ok(shows) => {
-                        for show in shows.iter() {
-                            let filter = dbqueries::EpisodeFilter {
-                                downloaded: Some(true),
-                                played: None,
-                                search: None,
-                                reverse_order: false,
-                            };
-
-                            match dbqueries::get_pd_episode_widgets(show, &filter) {
-                                Ok(episodes) => {
-                                    sender.input(DownloadsPageInput::GottenEpisodes(episodes));
-                                }
-                                Err(error) => {
-                                    let _ = sender.output(DownloadsPageOutput::NotifyError(
-                                        error.to_string(),
-                                    ));
-                                }
-                            }
-                        }
-                    }
-                    Err(error) => {
-                        let _ = sender.output(DownloadsPageOutput::NotifyError(error.to_string()));
-                    }
-                }
-
-                self.is_loading = false;
+                println!("DownloadsPage: Fetching Downloads");
+                let _ = sender.output(DownloadsPageOutput::Execute(
+                    self.task_id,
+                    Action::FetchDownloads,
+                ));
             }
             DownloadsPageInput::GottenEpisodes(episodes) => {
                 let mut guard = self.episodes.guard();
-                //guard.clear();
+                guard.clear();
 
                 for episode in episodes.iter() {
                     let index = guard.push_back(episode.clone());
@@ -196,6 +164,7 @@ impl Component for DownloadsPage {
             DownloadsPageInput::DownloadCancled(_episode_id) => {}
             DownloadsPageInput::DownloadProgress(_episode_id, _) => {}
             DownloadsPageInput::DownloadFinished(_episode_id) => {
+            print!("Download Finished Recieved by DownloadsPage");
                 sender.input(DownloadsPageInput::FetchDownloads)
             }
             DownloadsPageInput::ChangePlayBackState(play_state, episode_id) => {
@@ -224,7 +193,15 @@ impl Component for DownloadsPage {
                     guard.remove(index.current_index());
                 }
             }
-            DownloadsPageInput::ActionFinished(uuid, result) => {}
+            DownloadsPageInput::ActionFinished(uuid, result) => {
+                if uuid == self.task_id {
+                    if let Ok(episodes_arc) = result.downcast::<Vec<EpisodeWidgetModel>>() {
+                        if let Ok(episodes) = Arc::try_unwrap(episodes_arc) {
+                            sender.input(DownloadsPageInput::GottenEpisodes(episodes));
+                        }
+                    }
+                }
+            }
         }
     }
 }

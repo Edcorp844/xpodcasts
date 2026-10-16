@@ -53,6 +53,7 @@ impl ProgressColor {
     }
 
     fn lookup_named_color(widget: &gtk::DrawingArea, name: &str) -> gtk::gdk::RGBA {
+        let  _ = widget.color();
         let context = widget.style_context();
         context
             .lookup_color(name)
