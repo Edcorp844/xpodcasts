@@ -187,6 +187,17 @@ impl Component for ShowPage {
                                                 add_css_class: "title-1"
                                             },
 
+                                            gtk::Label {
+                                                #[watch]
+                                                set_visible: model.show.as_ref().and_then(|s| s.primary_genre()).is_some(),
+                                                #[watch]
+                                                set_label: model.show.as_ref().and_then(|s| s.primary_genre()).map(|s| s.trim()).unwrap_or(""),
+                                                set_halign: gtk::Align::Start,
+                                                set_wrap: true,
+                                                set_wrap_mode: gtk::pango::WrapMode::WordChar,
+                                                add_css_class: "caption-heading"
+                                            },
+
                                             // Description Excerpt Block
                                             gtk::Label {
                                                 #[watch]
@@ -230,7 +241,7 @@ impl Component for ShowPage {
                                                 set_halign: gtk::Align::Start,
 
                                                 model.latest_play_button.widget(){
-                                                    add_css_class: "suggested-action"
+                                                    set_css_classes: &vec!["pill", "suggested-action"],
                                                 },
 
                                                 gtk::Separator { set_hexpand: true, add_css_class: "spacer" },
@@ -597,14 +608,14 @@ impl Component for ShowPage {
                             let seconds = rem % 60;
 
                             if hours > 0 {
-                                format!("{}h {}m", hours, minutes)
+                                format!("{}hr {}mim", hours, minutes)
                             } else if minutes > 0 {
-                                format!("{}m", minutes)
+                                format!("{}min", minutes)
                             } else {
-                                format!("{}s", seconds)
+                                format!("{}sec", seconds)
                             }
                         } else {
-                            "0s".to_string()
+                            "0sec".to_string()
                         };
 
                         self.latest_play_button

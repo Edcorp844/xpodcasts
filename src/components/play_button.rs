@@ -50,7 +50,8 @@ impl Component for PlayButton {
 
     view! {
          gtk::Button{
-            set_css_classes: &vec!["pill"],
+            //set_css_classes: &vec!["pill"],
+            inline_css: "border-radius: 20px",
             set_halign: gtk::Align::Start,
             set_valign: gtk::Align::Start,
 

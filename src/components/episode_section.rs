@@ -16,6 +16,7 @@ pub struct EpisodeSection {
     col_3: FactoryVecDeque<EpisodeSectionTile>,
     col_4: FactoryVecDeque<EpisodeSectionTile>,
     index_by_id: HashMap<EpisodeId, relm4::factory::DynamicIndex>,
+    rows: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -28,7 +29,7 @@ pub enum EpisodeSectionOutput {}
 
 #[relm4::component(pub)]
 impl Component for EpisodeSection {
-    type Init = ();
+    type Init = usize;
     type Input = EpisodeSectionInput;
     type Output = EpisodeSectionOutput;
     type CommandOutput = ();
@@ -99,7 +100,7 @@ impl Component for EpisodeSection {
     }
 
     fn init(
-        _init: Self::Init,
+        rows: Self::Init,
         root: Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
@@ -123,6 +124,7 @@ impl Component for EpisodeSection {
             col_3: FactoryVecDeque::builder().launch(parent_3).detach(),
             col_4: FactoryVecDeque::builder().launch(parent_4).detach(),
             index_by_id: HashMap::new(),
+            rows
         };
 
         let episodes_container1 = model.col_1.widget();
@@ -150,7 +152,7 @@ impl Component for EpisodeSection {
                 self.index_by_id.clear();
 
                 // Chunk the episodes into groups of 3 (3 rows per column)
-                for (col_index, chunk) in episodes.chunks(3).enumerate() {
+                for (col_index, chunk) in episodes.chunks(self.rows).enumerate() {
                     match col_index % 4 {
                         // Column 1
                         0 => {

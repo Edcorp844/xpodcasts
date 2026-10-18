@@ -1,6 +1,7 @@
 // platform.rs
 //
-// Copyright 2022-2024 nee <nee-git@patchouli.garden>
+// Copyright 2022-2026 nee <nee-git@patchouli.garden>
+// Copyright 2026 Frost Edson <frost@example.com> (Modified for extended metadata support)
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -77,42 +78,78 @@ fn merge_results(merged: &mut Vec<FoundPodcast>, other_results: Vec<FoundPodcast
 mod tests {
     use super::*;
 
+    // Helper function to build a FoundPodcast with all new optional metadata fields defaulted.
+    // This keeps test fixtures clean and isolates the test logic from future struct changes.
+    fn make_test_podcast(
+        feed: &str,
+        title: &str,
+        author: &str,
+        description: &str,
+        art: &str,
+        episode_count: Option<i32>,
+        last_publication: Option<chrono::DateTime<chrono::Local>>,
+    ) -> FoundPodcast {
+        FoundPodcast {
+            feed: feed.to_string(),
+            title: title.to_string(),
+            author: author.to_string(),
+            description: description.to_string(),
+            art: art.to_string(),
+            episode_count,
+            last_publication,
+            
+            censored_name: None,
+            primary_genre: None,
+            genres: None,
+            genre_ids: None,
+            is_explicit: None,
+            content_advisory_rating: None,
+            apple_url: None,
+            artwork_url_30: None,
+            artwork_url_60: None,
+            artwork_url_100: None,
+            track_time_millis: None,
+        }
+    }
+
     #[test]
     fn merge() -> Result<()> {
-        let itunes = vec![FoundPodcast {
-            feed: "https://feeds.fireside.fm/cornerspaeti/rss".to_string(),
-            title: "Corner Späti".to_string(),
-            author: "The Späti Boys".to_string(),
-            description: "".to_string(),
-            art: "https://img-1.fyyd.de/pd/small/77182e877ac679f9414148fab3dddb74782c2.jpg"
-                .to_string(),
-            episode_count: Some(347),
-            last_publication: Some(
-                chrono::DateTime::parse_from_rfc3339("2024-03-07T10:00:00+01:00")
-                    .unwrap()
-                    .with_timezone(&chrono::Local),
-            ),
-        }];
-        let fyyd = vec![FoundPodcast {
-            feed: "https://feeds.fireside.fm/cornerspaeti/rss".to_string(),
-            title: "Corner Späti".to_string(),
-            author: "The Späti Boys".to_string(),
-            description: "Weekly discussions of a deteriorating world all from the comfort of your local smoke-filled Spätkauf.\nhttps://www.patreon.com/cornerspaeti\nhttps://www.operationglad.io/start\n".to_string(),
-            art: "https://img-1.fyyd.de/pd/small/77182e877ac679f9414148fab3dddb74782c2.jpg".to_string(),
-            episode_count: Some(348),
-            last_publication: Some(chrono::DateTime::parse_from_rfc3339("2024-03-07T10:00:00+01:00").unwrap().with_timezone(&chrono::Local))
-        }];
-        let expected: Vec<FoundPodcast> = vec![
-            FoundPodcast {
-                feed: "https://feeds.fireside.fm/cornerspaeti/rss".to_string(),
-                title: "Corner Späti".to_string(),
-                author: "The Späti Boys".to_string(),
-                description: "Weekly discussions of a deteriorating world all from the comfort of your local smoke-filled Spätkauf.\nhttps://www.patreon.com/cornerspaeti\nhttps://www.operationglad.io/start\n".to_string(),
-                art: "https://img-1.fyyd.de/pd/small/77182e877ac679f9414148fab3dddb74782c2.jpg".to_string(),
-                episode_count: Some(348),
-                last_publication: Some(chrono::DateTime::parse_from_rfc3339("2024-03-07T10:00:00+01:00").unwrap().with_timezone(&chrono::Local))
-            }
+        let itunes = vec![
+            make_test_podcast(
+                "https://feeds.fireside.fm/cornerspaeti/rss",
+                "Corner Späti",
+                "The Späti Boys",
+                "",
+                "https://img-1.fyyd.de/pd/small/77182e877ac679f9414148fab3dddb74782c2.jpg",
+                Some(347),
+                Some(chrono::DateTime::parse_from_rfc3339("2024-03-07T10:00:00+01:00").unwrap().with_timezone(&chrono::Local)),
+            )
         ];
+        
+        let fyyd = vec![
+            make_test_podcast(
+                "https://feeds.fireside.fm/cornerspaeti/rss",
+                "Corner Späti",
+                "The Späti Boys",
+                "Weekly discussions of a deteriorating world all from the comfort of your local smoke-filled Spätkauf.\nhttps://www.patreon.com/cornerspaeti\nhttps://www.operationglad.io/start\n",
+                "https://img-1.fyyd.de/pd/small/77182e877ac679f9414148fab3dddb74782c2.jpg",
+                Some(348),
+                Some(chrono::DateTime::parse_from_rfc3339("2024-03-07T10:00:00+01:00").unwrap().with_timezone(&chrono::Local)),
+            )
+        ];
+        
+        let expected: Vec<FoundPodcast> = vec![
+            make_test_podcast(
+                "https://feeds.fireside.fm/cornerspaeti/rss",
+                "Corner Späti",
+                "The Späti Boys",
+                "Weekly discussions of a deteriorating world all from the comfort of your local smoke-filled Spätkauf.\nhttps://www.patreon.com/cornerspaeti\nhttps://www.operationglad.io/start\n",
+                "https://img-1.fyyd.de/pd/small/77182e877ac679f9414148fab3dddb74782c2.jpg",
+                Some(348),
+                Some(chrono::DateTime::parse_from_rfc3339("2024-03-07T10:00:00+01:00").unwrap().with_timezone(&chrono::Local)),
+            )
+        ];
+        
         let itunes2 = itunes.clone();
         let mut merged = itunes;
         merge_results(&mut merged, fyyd);
@@ -124,36 +161,42 @@ mod tests {
 
     #[test]
     fn merge_nones() -> Result<()> {
-        let itunes = vec![FoundPodcast {
-            feed: "https://feeds.fireside.fm/cornerspaeti/rss".to_string(),
-            title: "Corner Späti".to_string(),
-            author: "The Späti Boys".to_string(),
-            description: "".to_string(),
-            art: "https://img-1.fyyd.de/pd/small/77182e877ac679f9414148fab3dddb74782c2.jpg"
-                .to_string(),
-            episode_count: None,
-            last_publication: None,
-        }];
-        let fyyd = vec![FoundPodcast {
-            feed: "https://feeds.fireside.fm/cornerspaeti/rss".to_string(),
-            title: "Corner Späti".to_string(),
-            author: "The Späti Boys".to_string(),
-            description: "Weekly discussions of a deteriorating world all from the comfort of your local smoke-filled Spätkauf.\nhttps://www.patreon.com/cornerspaeti\nhttps://www.operationglad.io/start\n".to_string(),
-            art: "https://img-1.fyyd.de/pd/small/77182e877ac679f9414148fab3dddb74782c2.jpg".to_string(),
-            episode_count: Some(348),
-            last_publication: Some(chrono::DateTime::parse_from_rfc3339("2024-03-07T10:00:00+01:00").unwrap().with_timezone(&chrono::Local))
-        }];
-        let expected: Vec<FoundPodcast> = vec![
-            FoundPodcast {
-                feed: "https://feeds.fireside.fm/cornerspaeti/rss".to_string(),
-                title: "Corner Späti".to_string(),
-                author: "The Späti Boys".to_string(),
-                description: "Weekly discussions of a deteriorating world all from the comfort of your local smoke-filled Spätkauf.\nhttps://www.patreon.com/cornerspaeti\nhttps://www.operationglad.io/start\n".to_string(),
-                art: "https://img-1.fyyd.de/pd/small/77182e877ac679f9414148fab3dddb74782c2.jpg".to_string(),
-                episode_count: Some(348),
-                last_publication: Some(chrono::DateTime::parse_from_rfc3339("2024-03-07T10:00:00+01:00").unwrap().with_timezone(&chrono::Local))
-            }
+        let itunes = vec![
+            make_test_podcast(
+                "https://feeds.fireside.fm/cornerspaeti/rss",
+                "Corner Späti",
+                "The Späti Boys",
+                "",
+                "https://img-1.fyyd.de/pd/small/77182e877ac679f9414148fab3dddb74782c2.jpg",
+                None,
+                None,
+            )
         ];
+        
+        let fyyd = vec![
+            make_test_podcast(
+                "https://feeds.fireside.fm/cornerspaeti/rss",
+                "Corner Späti",
+                "The Späti Boys",
+                "Weekly discussions of a deteriorating world all from the comfort of your local smoke-filled Spätkauf.\nhttps://www.patreon.com/cornerspaeti\nhttps://www.operationglad.io/start\n",
+                "https://img-1.fyyd.de/pd/small/77182e877ac679f9414148fab3dddb74782c2.jpg",
+                Some(348),
+                Some(chrono::DateTime::parse_from_rfc3339("2024-03-07T10:00:00+01:00").unwrap().with_timezone(&chrono::Local)),
+            )
+        ];
+        
+        let expected: Vec<FoundPodcast> = vec![
+            make_test_podcast(
+                "https://feeds.fireside.fm/cornerspaeti/rss",
+                "Corner Späti",
+                "The Späti Boys",
+                "Weekly discussions of a deteriorating world all from the comfort of your local smoke-filled Spätkauf.\nhttps://www.patreon.com/cornerspaeti\nhttps://www.operationglad.io/start\n",
+                "https://img-1.fyyd.de/pd/small/77182e877ac679f9414148fab3dddb74782c2.jpg",
+                Some(348),
+                Some(chrono::DateTime::parse_from_rfc3339("2024-03-07T10:00:00+01:00").unwrap().with_timezone(&chrono::Local)),
+            )
+        ];
+        
         let itunes2 = itunes.clone();
         let mut merged = itunes;
         merge_results(&mut merged, fyyd);

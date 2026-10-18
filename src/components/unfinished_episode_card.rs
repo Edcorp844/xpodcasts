@@ -76,14 +76,14 @@ impl FactoryComponent for UnfinishedEpisodeCard {
             let seconds = pos_secs % 60;
 
             if hours > 0 {
-                format!("{}h {}m", hours, minutes)
+                format!("{}hr {}min", hours, minutes)
             } else if minutes > 0 {
-                format!("{}m", minutes)
+                format!("{}min", minutes)
             } else {
-                format!("{}s", seconds)
+                format!("{}sec", seconds)
             }
         } else {
-            "0s".to_string()
+            "0sec".to_string()
         };
 
         let play_button_init_data = PlayButtonInitData {

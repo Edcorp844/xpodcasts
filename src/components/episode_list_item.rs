@@ -95,12 +95,12 @@ impl FactoryComponent for EpisodeListItem {
                 let minutes = (seconds % 3600) / 60;
 
                 if hours > 0 {
-                    format!("{}h {}m", hours, minutes)
+                    format!("{}hr {}min", hours, minutes)
                 } else {
-                    format!("{}m", minutes)
+                    format!("{}min", minutes)
                 }
             }
-            _ => "0m".to_string(),
+            _ => "0min".to_string(),
         };
 
         let play_button = PlayButton::builder()
@@ -240,12 +240,12 @@ impl FactoryComponent for EpisodeListItem {
                             let minutes = (seconds % 3600) / 60;
 
                             if hours > 0 {
-                                format!("{}h {}m", hours, minutes)
+                                format!("{}hr {}min", hours, minutes)
                             } else {
-                                format!("{}m", minutes)
+                                format!("{}min", minutes)
                             }
                         }
-                        _ => "0m".to_string(),
+                        _ => "0min".to_string(),
                     };
 
                     self.play_button
@@ -277,14 +277,14 @@ impl FactoryComponent for EpisodeListItem {
                     let seconds = rem % 60;
 
                     if hours > 0 {
-                        format!("{}h {}m", hours, minutes)
+                        format!("{}hr {}min", hours, minutes)
                     } else if minutes > 0 {
-                        format!("{}m", minutes)
+                        format!("{}min", minutes)
                     } else {
-                        format!("{}s", seconds)
+                        format!("{}sec", seconds)
                     }
                 } else {
-                    "0s".to_string()
+                    "0sec".to_string()
                 };
 
                 self.play_button

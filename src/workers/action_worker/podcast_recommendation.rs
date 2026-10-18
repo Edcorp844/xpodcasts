@@ -1,3 +1,4 @@
+
 use chrono::{DateTime, Local, TimeZone};
 use gtk::glib;
 use podcasts_data::{discovery::FoundPodcast, errors::DataError};
@@ -6,9 +7,6 @@ use url::Url;
 
 // ---------- Custom Client ----------
 
-/// Builds a client specifically for Apple's APIs.
-/// We use a standard browser User-Agent to bypass Apple's WAF, 
-/// which frequently blocks default Rust clients with 502/504 errors.
 fn apple_client() -> reqwest::Client {
     reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
@@ -83,6 +81,10 @@ pub struct LookupEntry {
     pub artwork_url600: Option<String>,
     #[serde(rename = "artworkUrl100")]
     pub artwork_url100: Option<String>,
+    #[serde(rename = "artworkUrl30")]
+    pub artwork_url30: Option<String>,
+    #[serde(rename = "artworkUrl60")]
+    pub artwork_url60: Option<String>,
 
     #[serde(rename = "releaseDate")]
     pub release_date: Option<String>,
@@ -92,6 +94,21 @@ pub struct LookupEntry {
 
     #[serde(rename = "primaryGenreName")]
     pub primary_genre_name: Option<String>,
+    #[serde(rename = "genres", default)]
+    pub genres: Option<Vec<String>>,
+    #[serde(rename = "genreIds", default)]
+    pub genre_ids: Option<Vec<String>>,
+
+    #[serde(rename = "collectionCensoredName")]
+    pub collection_censored_name: Option<String>,
+    #[serde(rename = "collectionExplicitness")]
+    pub collection_explicitness: Option<String>,
+    #[serde(rename = "contentAdvisoryRating")]
+    pub content_advisory_rating: Option<String>,
+    #[serde(rename = "collectionViewUrl")]
+    pub collection_view_url: Option<String>,
+    #[serde(rename = "trackTimeMillis")]
+    pub track_time_millis: Option<i64>,
 
     pub country: Option<String>,
 }
@@ -101,24 +118,19 @@ pub struct LookupEntry {
 impl From<LookupEntry> for FoundPodcast {
     fn from(entry: LookupEntry) -> Self {
         let feed = entry.feed_url.unwrap_or_default();
-
-        let title = entry
-            .collection_name
-            .or(entry.track_name)
-            .unwrap_or_default();
-
+        let title = entry.collection_name.or(entry.track_name).unwrap_or_default();
         let author = entry.artist_name.unwrap_or_default();
-
-        let art = entry
-            .artwork_url600
-            .or(entry.artwork_url100)
-            .unwrap_or_default();
+        let art = entry.artwork_url600.clone().or(entry.artwork_url100.clone()).unwrap_or_default();
 
         let last_publication = entry
             .release_date
             .as_deref()
             .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
             .map(|dt| dt.with_timezone(&Local));
+
+        let is_explicit = entry.collection_explicitness
+            .as_deref()
+            .map(|s| s.eq_ignore_ascii_case("explicit"));
 
         FoundPodcast {
             feed,
@@ -128,13 +140,24 @@ impl From<LookupEntry> for FoundPodcast {
             art,
             episode_count: entry.track_count,
             last_publication,
+            
+            censored_name: entry.collection_censored_name,
+            primary_genre: entry.primary_genre_name,
+            genres: entry.genres,
+            genre_ids: entry.genre_ids,
+            is_explicit,
+            content_advisory_rating: entry.content_advisory_rating,
+            apple_url: entry.collection_view_url,
+            artwork_url_30: entry.artwork_url30,
+            artwork_url_60: entry.artwork_url60,
+            artwork_url_100: entry.artwork_url100,
+            track_time_millis: entry.track_time_millis,
         }
     }
 }
 
 // ---------- Client methods ----------
 
-/// Fetch the Apple Podcasts top chart for a country.
 pub async fn top_charts(country: &str, limit: u32) -> Result<Vec<FoundPodcast>, DataError> {
     let limit = limit.clamp(1, 100);
 
@@ -143,7 +166,6 @@ pub async fn top_charts(country: &str, limit: u32) -> Result<Vec<FoundPodcast>, 
         country, limit
     );
 
-    // Use our custom Apple client
     let client = apple_client();
     let resp = client.get(&url).send().await?;
 
@@ -174,21 +196,21 @@ pub async fn top_charts(country: &str, limit: u32) -> Result<Vec<FoundPodcast>, 
                 eprintln!("lookup failed for {}: {}", entry.id, err);
             }
         }
-
+        // Pacing for Apple API
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
     }
 
     Ok(out)
 }
 
-/// Look up a single Apple Podcasts show by its numeric ID.
 pub async fn lookup_by_id(id: &str) -> Result<Option<FoundPodcast>, DataError> {
     let url = Url::parse_with_params(
         "https://itunes.apple.com/lookup",
         &[("id", id), ("entity", "podcast")],
     )?;
 
-    // Use our custom Apple client here too
+    println!("url: {}", url.as_str());
+
     let client = apple_client();
     let resp = client.get(url).send().await?;
 

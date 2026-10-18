@@ -292,14 +292,14 @@ impl Component for PodcastPage {
                             let seconds = rem % 60;
 
                             if hours > 0 {
-                                format!("{}h {}m", hours, minutes)
+                                format!("{}hr {}mim", hours, minutes)
                             } else if minutes > 0 {
-                                format!("{}m", minutes)
+                                format!("{}min", minutes)
                             } else {
-                                format!("{}s", seconds)
+                                format!("{}sec", seconds)
                             }
                         } else {
-                            "0s".to_string()
+                            "0sec".to_string()
                         };
 
                         self.latest_play_button
@@ -468,7 +468,9 @@ impl Component for PodcastPage {
                                         gtk::Box{
                                             #[watch]
                                             set_visible: model.latest_episode.is_some(),
-                                            model.latest_play_button.widget(),
+                                            model.latest_play_button.widget(){
+                                                set_css_classes: &vec!["pill"],
+                                            },
                                         },
 
                                         gtk::Separator { set_hexpand: true, add_css_class: "spacer" },

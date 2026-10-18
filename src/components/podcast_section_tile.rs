@@ -2,40 +2,40 @@ use adw::prelude::*;
 use podcasts_data::discovery::FoundPodcast;
 use relm4::prelude::*;
 
-use crate::util::cover_image::{ImageSize, fetch_cached_image};
+use crate::util::cover_image::{fetch_cached_image, ImageSize};
 
 #[derive(Debug)]
-pub struct FoundPodcastsCard {
+pub struct PodcastSectionTile {
     podcast: FoundPodcast,
     texture: Option<adw::gdk::Texture>,
 }
 
 #[derive(Debug)]
-pub enum FoundCardInput {
+pub enum PodcastSectionTileInput {
     ImageDownloaded(Option<adw::gdk::Texture>),
     OpenPodcastPage,
     Subscribe,
 }
 
 #[derive(Debug)]
-pub enum FoundCardOutput {
+pub enum PodcastSectionTileOutput {
     OpenPodcastPage(FoundPodcast),
     Subscribe(String),
 }
 
 #[derive(Debug)]
-pub enum FoundPodcastCardCmdInput {
+pub enum PodcastSectionTileCmdInput {
     // Input channel target variant triggered when an image download completes
     DownloadImage(Option<adw::gdk::Texture>),
     SubscribeFinished,
 }
 
 #[relm4::factory(pub)]
-impl FactoryComponent for FoundPodcastsCard {
+impl FactoryComponent for PodcastSectionTile {
     type Init = FoundPodcast;
-    type Input = FoundCardInput;
-    type Output = FoundCardOutput;
-    type CommandOutput = FoundPodcastCardCmdInput;
+    type Input = PodcastSectionTileInput;
+    type Output = PodcastSectionTileOutput;
+    type CommandOutput = PodcastSectionTileCmdInput;
     type ParentWidget = gtk::FlowBox;
 
     view! {
@@ -135,14 +135,14 @@ impl FactoryComponent for FoundPodcastsCard {
                     set_halign: gtk::Align::End,
 
                     connect_clicked[sender] => move |_| {
-                        sender.input(FoundCardInput::Subscribe);
+                        sender.input(PodcastSectionTileInput::Subscribe);
                     }
                 },
             },
 
             add_controller = gtk::GestureClick {
                 connect_released[sender] => move |_, _, _, _| {
-                    sender.input(FoundCardInput::OpenPodcastPage);
+                    sender.input(PodcastSectionTileInput::OpenPodcastPage);
                 }
             }
         }
@@ -153,7 +153,7 @@ impl FactoryComponent for FoundPodcastsCard {
 
         sender.oneshot_command(async move {
             let downloaded_texture = fetch_cached_image(&url_string, ImageSize::default()).await;
-            FoundPodcastCardCmdInput::DownloadImage(downloaded_texture)
+            PodcastSectionTileCmdInput::DownloadImage(downloaded_texture)
         });
 
         Self {
@@ -164,28 +164,28 @@ impl FactoryComponent for FoundPodcastsCard {
 
     fn update(&mut self, message: Self::Input, sender: FactorySender<Self>) {
         match message {
-            FoundCardInput::ImageDownloaded(fetched_texture) => {
+            PodcastSectionTileInput::ImageDownloaded(fetched_texture) => {
                 self.texture = fetched_texture;
             }
-            FoundCardInput::Subscribe => {
-                let _ = sender.output(FoundCardOutput::Subscribe(self.podcast.feed.clone()));
+            PodcastSectionTileInput::Subscribe => {
+                let _ = sender.output(PodcastSectionTileOutput::Subscribe(self.podcast.feed.clone()));
             }
-            FoundCardInput::OpenPodcastPage => {
-                let _ = sender.output(FoundCardOutput::OpenPodcastPage(self.podcast.clone()));
+            PodcastSectionTileInput::OpenPodcastPage => {
+                let _ = sender.output(PodcastSectionTileOutput::OpenPodcastPage(self.podcast.clone()));
             }
         }
     }
 
     fn update_cmd(&mut self, message: Self::CommandOutput, sender: FactorySender<Self>) {
         match message {
-            FoundPodcastCardCmdInput::DownloadImage(opt_texture) => {
-                sender.input(FoundCardInput::ImageDownloaded(opt_texture));
+            PodcastSectionTileCmdInput::DownloadImage(opt_texture) => {
+                sender.input(PodcastSectionTileInput::ImageDownloaded(opt_texture));
             }
-            FoundPodcastCardCmdInput::SubscribeFinished => {
+            PodcastSectionTileCmdInput::SubscribeFinished => {
                 println!("Subscription handling processing completed.");
             }
         }
     }
 }
 
-impl FoundPodcastsCard {}
+impl PodcastSectionTile {}

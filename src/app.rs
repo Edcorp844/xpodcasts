@@ -164,7 +164,7 @@ impl Component for AppModel {
                                     set_title: Some(&gettext("Recently updated"))
                                 },
                                  append= adw::SidebarItem{
-                                    set_icon_name: Some("folder-videos-symbolic"),
+                                    set_icon_name: Some("file-cabinet-symbolic"),
                                     set_title: Some(&gettext("Shows"))
                                 },
                                  append= adw::SidebarItem{

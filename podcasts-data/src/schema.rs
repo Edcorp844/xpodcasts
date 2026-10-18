@@ -28,6 +28,19 @@ table! {
         image_uri_hash -> Nullable<Binary>,
         image_cached -> Timestamp,
         source_id -> Integer,
+
+        // --- NEW ENHANCED METADATA (Nullable for fyyd & backwards compatibility) ---
+        censored_name -> Nullable<Text>,
+        primary_genre -> Nullable<Text>,
+        genres -> Nullable<Text>,       // Stored as JSON string, e.g., '["News","Daily"]'
+        genre_ids -> Nullable<Text>,    // Stored as JSON string, e.g., '["1489","26"]'
+        is_explicit -> Nullable<Bool>,
+        content_advisory_rating -> Nullable<Text>,
+        apple_url -> Nullable<Text>,
+        artwork_url_30 -> Nullable<Text>,
+        artwork_url_60 -> Nullable<Text>,
+        artwork_url_100 -> Nullable<Text>,
+        track_time_millis -> Nullable<BigInt>,
     }
 }
 

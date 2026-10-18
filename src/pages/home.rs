@@ -1,19 +1,15 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
-use gettextrs::gettext;
 use gst_play::PlayState;
-use podcasts_data::discovery::{search, FoundPodcast, SearchError, ALL_PLATFORM_IDS};
-use podcasts_data::{dbqueries, EpisodeId};
+use podcasts_data::discovery::{FoundPodcast, SearchError};
+use podcasts_data::EpisodeId;
 use relm4::adw::prelude::*;
 use relm4::prelude::*;
 use uuid::Uuid;
 
 use crate::app_navigation_ext::PageController;
-use crate::components::found_podcast_ui::{FoundCardOutput, FoundPodcastsCard};
-use crate::components::episode_section::{
-    self, EpisodeSection, EpisodeSectionInput,
-};
+use crate::components::episode_section::{EpisodeSection, EpisodeSectionInput};
+use crate::components::podcast_section::{PodcastSection, PodcastSectionInput};
 use crate::components::unfinished_episodes_section::{
     UnfinishedEpisodesSection, UnfinishedEpisodesSectionInput,
 };
@@ -23,13 +19,11 @@ use crate::workers::action_worker::worker::ActionResult;
 
 #[derive(Debug)]
 pub struct HomePage {
-    pub podcasts: FactoryVecDeque<FoundPodcastsCard>,
-
-    pub is_loading: bool,
     pub active_pages: HashMap<String, PageController>,
     task_id: Uuid,
     unfinished_episodes_controller: Controller<UnfinishedEpisodesSection>,
     missed_episode_controller: Controller<EpisodeSection>,
+    top_podcasts_controller: Controller<PodcastSection>,
 }
 
 #[derive(Debug)]
@@ -41,7 +35,6 @@ pub enum HomePageCommand {
 pub enum HomePageInput {
     ActionFinished(Uuid, ActionResult),
     FetchPodcasts,
-    PodcastsLoaded(Vec<FoundPodcast>),
     Subscribe(String),
     PushPage(String),
     OpenPodcast(FoundPodcast),
@@ -114,34 +107,8 @@ impl Component for HomePage {
 
                                         model.unfinished_episodes_controller.widget(){},
                                         model.missed_episode_controller.widget(){},
+                                        model.top_podcasts_controller.widget(){}
 
-                                        gtk::Box {
-                                            // #[watch]
-                                            // set_visible: !model.podcasts.is_empty(),
-                                            set_orientation: gtk::Orientation::Horizontal,
-                                            set_halign: gtk::Align::Start,
-
-                                            set_spacing: 4,
-                                            inline_css: "margin-top: 16px;",
-
-                                            gtk::Label {
-                                                set_label: &gettext("Trending Shows"),
-                                                add_css_class: "title-3",
-                                                set_valign: gtk::Align::Center,
-                                            },
-
-                                            gtk::Image {
-                                                set_icon_name: Some("go-next-symbolic"),
-                                                inline_css: "opacity: 0.7; margin-left: 4px;",
-                                                set_valign: gtk::Align::Center,
-                                            },
-                                        },
-
-                                        #[local_ref]
-                                        podcast_grid -> gtk::FlowBox {
-                                            #[watch]
-                                            set_visible: !model.is_loading,
-                                        }
                                     }
                                 }
                             }
@@ -156,56 +123,21 @@ impl Component for HomePage {
         _root: Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
-        // Build your customized FlowBox layout container manually
-        let grid = gtk::FlowBox::builder()
-            .selection_mode(gtk::SelectionMode::None)
-            .column_spacing(20)
-            .row_spacing(40)
-            .homogeneous(true)
-            .build();
-
-        // Attach your dynamic width column calculating callback hook
-        let last_width = std::cell::Cell::new(0);
-        grid.add_tick_callback(move |grid, _| {
-            let width = grid.width();
-            if width != last_width.get() {
-                last_width.set(width);
-                let columns = match width {
-                    0..=500 => 2,
-                    501..=800 => 3,
-                    801..=1100 => 4,
-                    _ => 5,
-                };
-                grid.set_min_children_per_line(columns);
-                grid.set_max_children_per_line(columns);
-            }
-            gtk::glib::ControlFlow::Continue
-        });
-
         let unfinished_episodes_controller =
             UnfinishedEpisodesSection::builder().launch(()).detach();
 
-        let missed_episode_controller = EpisodeSection::builder().launch(()).detach();
+        let missed_episode_controller = EpisodeSection::builder().launch(2).detach();
+
+        let top_podcasts_controller = PodcastSection::builder().launch(()).detach();
 
         let model = HomePage {
-            podcasts: FactoryVecDeque::builder().launch(grid).forward(
-                sender.input_sender(),
-                |msg| match msg {
-                    FoundCardOutput::Subscribe(feed) => HomePageInput::Subscribe(feed),
-                    FoundCardOutput::OpenPodcastPage(podcast) => {
-                        HomePageInput::OpenPodcast(podcast)
-                    }
-                },
-            ),
             active_pages: HashMap::new(),
-            is_loading: true,
             task_id: Uuid::new_v4(),
             unfinished_episodes_controller,
             missed_episode_controller,
+            top_podcasts_controller,
         };
 
-        // Resolve the reference for the local_ref macro parameter mapping step
-        let podcast_grid = model.podcasts.widget();
         let widgets = view_output!();
 
         sender.input(HomePageInput::FetchPodcasts);
@@ -223,37 +155,12 @@ impl Component for HomePage {
         match message {
             HomePageInput::FetchPodcasts => {
                 let _ = sender.output(HomPageOutput::Execute(self.task_id, Action::FetchHomeFeed));
-                let search_texts = vec!["uganda", "news", "footboall", "Jesus", "phaneroo"];
-
-                for text in search_texts {
-                    // Remove '|text|'—the variable is automatically captured by the 'move' keyword
-                    sender.oneshot_command(async move {
-                        for id in ALL_PLATFORM_IDS {
-                            match dbqueries::set_discovery_setting(id, true) {
-                                Err(e) => {
-                                    println!("Error settings: {}", e);
-                                }
-                                Ok(_) => {}
-                            }
-                        }
-
-                        HomePageCommand::Podcasts(search(&text).await)
-                    });
-                }
             }
 
             HomePageInput::Subscribe(feed) => {
                 let _ = sender.output(HomPageOutput::Subscribe(feed));
             }
-            HomePageInput::PodcastsLoaded(podcasts) => {
-                let mut guard = self.podcasts.guard();
-                //guard.clear(); // Flush old elements cleanly
-                for podcast in podcasts {
-                    guard.push_back(podcast);
-                }
 
-                self.is_loading = false;
-            }
             HomePageInput::OpenPodcast(podcast) => {
                 let key = podcast.title.clone();
                 let podcast_page = PodcastPage::builder().launch(podcast.clone()).forward(
@@ -332,10 +239,15 @@ impl Component for HomePage {
                                 feed_data.get_unfineshed_episodes(),
                             ),
                         );
-                        self.missed_episode_controller.emit(
-                            EpisodeSectionInput::SetEpisodes(feed_data.get_missed_episodes()),
-                        );
-                        sender.input(HomePageInput::PodcastsLoaded(feed_data.get_top_charts()));
+                        self.missed_episode_controller
+                            .emit(EpisodeSectionInput::SetEpisodes(
+                                feed_data.get_missed_episodes(),
+                            ));
+
+                        self.top_podcasts_controller
+                            .emit(PodcastSectionInput::SetPodcasts(feed_data.get_top_charts()));
+                    } else {
+                        println!("Result was not HomeFeedData"); // <--- ADD THIS
                     }
                 } else {
                     for (_, page) in &self.active_pages {

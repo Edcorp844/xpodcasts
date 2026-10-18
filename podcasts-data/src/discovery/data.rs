@@ -24,14 +24,35 @@ pub(crate) type UrlString = String;
 
 #[derive(Clone, Debug)]
 pub struct FoundPodcast {
+    // --- Core Fields (Required by UI) ---
     pub feed: UrlString,
     pub title: String,
     pub author: String,
     pub description: String,
-    pub art: UrlString,
+    pub art: UrlString, // High-res (600x600)
     pub episode_count: Option<i32>,
     pub last_publication: Option<DateTime<Local>>,
+
+    // --- Enhanced Apple Metadata (Optional for fyyd) ---
+    pub censored_name: Option<String>,
+    pub primary_genre: Option<String>,
+    pub genres: Option<Vec<String>>,
+    pub genre_ids: Option<Vec<String>>,
+
+    // --- Explicitness & Advisory ---
+    pub is_explicit: Option<bool>,
+    pub content_advisory_rating: Option<String>,
+
+    // --- Links & Small Art ---
+    pub apple_url: Option<String>,
+    pub artwork_url_30: Option<String>,
+    pub artwork_url_60: Option<String>,
+    pub artwork_url_100: Option<String>,
+
+    // --- Duration ---
+    pub track_time_millis: Option<i64>,
 }
+
 /// checks for rougly the same feed url
 impl PartialEq for FoundPodcast {
     fn eq(&self, other: &Self) -> bool {

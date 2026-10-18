@@ -379,7 +379,7 @@ impl ActionWorker {
                         let mut missed: Vec<Episode> = episodes
                             .into_iter()
                             .filter(|ep| ep.play_position() == 0 && ep.played().is_none())
-                            .take(12)
+                            .take(8)
                             .collect();
 
                         missed.sort_by(|a, b| b.epoch().cmp(&a.epoch()));
