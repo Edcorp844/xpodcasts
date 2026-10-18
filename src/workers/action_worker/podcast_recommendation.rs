@@ -1,7 +1,20 @@
 use chrono::{DateTime, Local, TimeZone};
-use podcasts_data::{discovery::FoundPodcast, downloader, errors::DataError};
+use gtk::glib;
+use podcasts_data::{discovery::FoundPodcast, errors::DataError};
 use serde::Deserialize;
 use url::Url;
+
+// ---------- Custom Client ----------
+
+/// Builds a client specifically for Apple's APIs.
+/// We use a standard browser User-Agent to bypass Apple's WAF, 
+/// which frequently blocks default Rust clients with 502/504 errors.
+fn apple_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
+}
 
 // ---------- Charts response ----------
 
@@ -36,7 +49,7 @@ pub struct ChartGenre {
     pub name: String,
 }
 
-// ---------- Lookup response (same schema as the search API) ----------
+// ---------- Lookup response ----------
 
 #[derive(Debug, Deserialize)]
 pub struct LookupResponse {
@@ -122,9 +135,6 @@ impl From<LookupEntry> for FoundPodcast {
 // ---------- Client methods ----------
 
 /// Fetch the Apple Podcasts top chart for a country.
-///
-/// `country` is a lowercase ISO 3166-1 alpha-2 code (e.g. "ug", "us", "gb").
-/// `limit` is clamped to 1..=100 by Apple.
 pub async fn top_charts(country: &str, limit: u32) -> Result<Vec<FoundPodcast>, DataError> {
     let limit = limit.clamp(1, 100);
 
@@ -133,29 +143,38 @@ pub async fn top_charts(country: &str, limit: u32) -> Result<Vec<FoundPodcast>, 
         country, limit
     );
 
-    let client = downloader::client_builder().build()?;
-    let response: ChartsResponse = client.get(&url).send().await?.json().await?;
+    // Use our custom Apple client
+    let client = apple_client();
+    let resp = client.get(&url).send().await?;
+
+    if !resp.status().is_success() {
+        eprintln!("Apple Charts API returned status {} for {}", resp.status(), url);
+        return Ok(Vec::new());
+    }
+
+    let response: ChartsResponse = match resp.json().await {
+        Ok(json) => json,
+        Err(err) => {
+            eprintln!("Failed to parse chart JSON: {}", err);
+            return Ok(Vec::new());
+        }
+    };
 
     let mut out = Vec::with_capacity(response.feed.results.len());
 
     for entry in response.feed.results {
         match lookup_by_id(&entry.id).await {
             Ok(Some(podcast)) => {
-                // Skip entries with no feed URL — can't subscribe to those.
                 if !podcast.feed.is_empty() {
                     out.push(podcast);
                 }
             }
-            Ok(None) => {
-                // Delisted or unavailable; skip.
-            }
+            Ok(None) => {}
             Err(err) => {
-                // Log and continue; one failure shouldn't kill the chart.
                 eprintln!("lookup failed for {}: {}", entry.id, err);
             }
         }
 
-        // Pace requests to stay under Apple's ~20/min rate limit.
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
     }
 
@@ -163,16 +182,57 @@ pub async fn top_charts(country: &str, limit: u32) -> Result<Vec<FoundPodcast>, 
 }
 
 /// Look up a single Apple Podcasts show by its numeric ID.
-///
-/// Returns `Ok(None)` if the ID isn't found.
 pub async fn lookup_by_id(id: &str) -> Result<Option<FoundPodcast>, DataError> {
     let url = Url::parse_with_params(
         "https://itunes.apple.com/lookup",
         &[("id", id), ("entity", "podcast")],
     )?;
 
-    let client = downloader::client_builder().build()?;
-    let response: LookupResponse = client.get(url).send().await?.json().await?;
+    // Use our custom Apple client here too
+    let client = apple_client();
+    let resp = client.get(url).send().await?;
+
+    if !resp.status().is_success() {
+        eprintln!("iTunes Lookup API returned status {}", resp.status());
+        return Ok(None);
+    }
+
+    let response: LookupResponse = match resp.json().await {
+        Ok(json) => json,
+        Err(err) => {
+            eprintln!("Failed to parse lookup JSON: {}", err);
+            return Ok(None);
+        }
+    };
 
     Ok(response.results.into_iter().next().map(FoundPodcast::from))
+}
+
+pub fn current_country() -> String {
+    let env_vars = ["LANG", "LC_ALL", "LC_MESSAGES", "LANGUAGE"];
+
+    for var in env_vars {
+        if let Ok(val) = std::env::var(var) {
+            let base = val.split('.').next().unwrap_or(&val);
+            let base = base.split('@').next().unwrap_or(base);
+
+            if let Some((_, region)) = base.split_once('_') {
+                if region.len() == 2 && region.chars().all(|c| c.is_ascii_alphabetic()) {
+                    return region.to_lowercase();
+                }
+            }
+        }
+    }
+
+    for lang in glib::language_names() {
+        let s = lang.to_string();
+        let base = s.split('.').next().unwrap_or(&s);
+        if let Some((_, region)) = base.split_once('_') {
+            if region.len() == 2 && region.chars().all(|c| c.is_ascii_alphabetic()) {
+                return region.to_lowercase();
+            }
+        }
+    }
+
+    "us".to_string()
 }

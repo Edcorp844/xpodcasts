@@ -30,10 +30,9 @@ impl Component for UnfinishedEpisodesSection {
 
     view! {
         gtk::Box{
+            #[watch]
+            set_visible: !model.episodes.is_empty(),
             set_orientation: gtk::Orientation::Vertical,
-            set_margin_start: 20,
-            set_margin_end: 20,
-            set_margin_bottom: 20,
             set_spacing: 20,
             gtk::Box {
                 set_orientation: gtk::Orientation::Horizontal,
@@ -62,8 +61,8 @@ impl Component for UnfinishedEpisodesSection {
 
             gtk::ScrolledWindow{
                 set_hscrollbar_policy: gtk::PolicyType::External,
-                set_vscrollbar_policy: gtk::PolicyType::Automatic,
-                set_height_request: 400,
+                set_vscrollbar_policy: gtk::PolicyType::Never,
+                set_propagate_natural_height: true,
                 set_margin_bottom: 20,
 
                 #[local_ref]

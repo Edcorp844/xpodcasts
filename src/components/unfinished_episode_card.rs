@@ -56,7 +56,7 @@ impl FactoryComponent for UnfinishedEpisodeCard {
 
             sender.oneshot_command(async move {
                 let downloaded_texture =
-                    fetch_cached_image(&image_url, ImageSize::from_dimesion(150)).await;
+                    fetch_cached_image(&image_url, ImageSize::new(Some(200), Some(200))).await;
                 UnfinishedEpisodeCardCmdInput::DownloadImage(downloaded_texture)
             });
         }
@@ -88,7 +88,7 @@ impl FactoryComponent for UnfinishedEpisodeCard {
 
         let play_button_init_data = PlayButtonInitData {
             label: progress_label,
-            state: EpisodePlayingState::Stopped,
+            state: EpisodePlayingState::ShowProgress,
             progress,
         };
 
@@ -244,7 +244,7 @@ impl FactoryComponent for UnfinishedEpisodeCard {
         #[name="card"]
         gtk::Overlay {
             set_height_request: 350,
-            set_width_request: 225,
+            set_width_request: 275,
             set_halign: gtk::Align::Center,
             set_valign: gtk::Align::Start,
             inline_css: "border-radius: 24px; border: 1px solid alpha(@borders, 0.8);",
@@ -260,7 +260,7 @@ impl FactoryComponent for UnfinishedEpisodeCard {
 
                 // Spacer reserving the image area
                 gtk::Box {
-                    set_height_request: 170,
+                    set_height_request: 218,
                     set_vexpand: false,
                     set_hexpand: true,
                 },
@@ -272,8 +272,9 @@ impl FactoryComponent for UnfinishedEpisodeCard {
                     set_valign: gtk::Align::Start,
                     set_halign: gtk::Align::Start,
                     set_xalign: 0.0,
-                    set_margin_all: 16,
-                    add_css_class: "caption",
+                    set_margin_horizontal: 16,
+                    set_margin_vertical: 8,
+                    add_css_class: "caption-heading",
                     inline_css: "color: white",
                     set_wrap: true,
                     set_wrap_mode: gtk::pango::WrapMode::WordChar,
@@ -302,6 +303,7 @@ impl FactoryComponent for UnfinishedEpisodeCard {
                         set_css_classes: &["circular"],
                         set_halign: gtk::Align::End,
                         set_valign: gtk::Align::Center,
+                        inline_css: "color: white",
 
                         #[wrap(Some)]
                         #[name = "menu_button"]
@@ -360,7 +362,7 @@ impl FactoryComponent for UnfinishedEpisodeCard {
                 set_margin_top: 20,
                 set_margin_start: 37,
                 set_margin_end: 37,
-                set_margin_bottom: 20,
+                set_margin_bottom: 16,
                 inline_css: "background-color: mix(var(--window-bg-color), var(--card-fg-color), 0.1); border-radius: 16px; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);",
 
                 #[name="picture"]

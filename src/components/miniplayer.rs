@@ -183,7 +183,7 @@ impl Component for MiniPlayerModel {
                     gtk::Separator { set_hexpand: true, add_css_class: "spacer" },
 
                     gtk::Button {
-                        set_icon_name: "media-seek-backward-symbolic",
+                        set_icon_name: "skip-backward-symbolic",
                         set_tooltip_text: Some("Rewind 15 seconds"),
                         set_valign: gtk::Align::Center,
                         set_css_classes: &["circular", "flat"],
@@ -232,7 +232,7 @@ impl Component for MiniPlayerModel {
                     },
 
                     gtk::Button {
-                        set_icon_name: "media-seek-forward-symbolic",
+                        set_icon_name: "skip-forward-symbolic",
                         set_tooltip_text: Some("Fast forward 30 seconds"),
                         set_valign: gtk::Align::Center,
                         set_css_classes: &["circular", "flat"],

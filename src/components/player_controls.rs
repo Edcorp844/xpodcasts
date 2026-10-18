@@ -304,7 +304,7 @@ impl Component for PlayerControls {
                         #[name="elapsed_time"]
                         gtk::Label {
                             set_label: "00:00",
-                            add_css_class: "caption"
+                            set_css_classes: &vec!["caption", "numeric"]
                         },
 
                         gtk::Separator { set_hexpand: true, add_css_class: "spacer" },
@@ -312,7 +312,7 @@ impl Component for PlayerControls {
                         #[name="remaining_time"]
                         gtk::Label {
                             set_label: "00:00",
-                            add_css_class: "caption"
+                            set_css_classes: &vec!["caption", "numeric"]
                         },
                     }
 
@@ -335,7 +335,7 @@ impl Component for PlayerControls {
 
                         #[wrap(Some)]
                         set_child = &gtk::Image {
-                            set_icon_name: Some("media-seek-backward-symbolic"),
+                            set_icon_name: Some("skip-backward-symbolic"),
                             set_icon_size: gtk::IconSize::Large,
                         },
 
@@ -390,7 +390,7 @@ impl Component for PlayerControls {
 
                         #[wrap(Some)]
                         set_child = &gtk::Image {
-                            set_icon_name: Some("media-seek-forward-symbolic"),
+                            set_icon_name: Some("skip-forward-symbolic"),
                             set_icon_size: gtk::IconSize::Large,
                         },
 

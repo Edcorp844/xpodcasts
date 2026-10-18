@@ -592,6 +592,7 @@ impl Component for AppModel {
             AppModelInput::SetSidebarCollapsed(_is_collapsed) => {}
 
             AppModelInput::NotifyError(error) => {
+                eprintln!("Error: {error}");
                 let toast = adw::Toast::builder()
                     .title(error)
                     .action_name("Action")

@@ -93,7 +93,6 @@ impl Component for DownloadsPage {
                                 set_visible: model.episodes.is_empty(),
 
                                 set_title: "You downloaded episodes will appear here",
-                                //set_description: Some("You downloaded episodes will appear here"),
                                 set_icon_name: Some("media-optical-symbolic"),
 
                                 set_vexpand: true,

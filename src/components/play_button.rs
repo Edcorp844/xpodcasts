@@ -1,7 +1,10 @@
 use adw::prelude::*;
-use relm4::{Component, prelude::*};
+use relm4::{prelude::*, Component};
 
-use crate::{components::progress_bar::{ProgressBar, ProgressBarInit, ProgressBarInput}, util::progress_color::ProgressColor};
+use crate::{
+    components::progress_bar::{ProgressBar, ProgressBarInit, ProgressBarInput},
+    util::progress_color::ProgressColor,
+};
 
 #[derive(Debug)]
 pub enum EpisodePlayingState {
@@ -9,6 +12,7 @@ pub enum EpisodePlayingState {
     Paused,
     Stopped,
     Finished,
+    ShowProgress,
 }
 
 #[derive(Debug)]
@@ -58,7 +62,7 @@ impl Component for PlayButton {
                     #[watch]
                     set_icon_name: match &model.playing_state {
                         EpisodePlayingState::Playing => Some("media-playback-pause-symbolic"),
-                        EpisodePlayingState::Paused | EpisodePlayingState::Stopped | EpisodePlayingState::Finished => {
+                        EpisodePlayingState::Paused | EpisodePlayingState::Stopped | EpisodePlayingState::Finished  | EpisodePlayingState::ShowProgress=> {
                             Some("media-playback-start-symbolic")
                         }
                     }
@@ -67,7 +71,7 @@ impl Component for PlayButton {
                 gtk::Box{
                     #[watch]
                     set_visible: match &model.playing_state {
-                        EpisodePlayingState::Playing | EpisodePlayingState::Paused => true,
+                        EpisodePlayingState::Playing | EpisodePlayingState::Paused | EpisodePlayingState::ShowProgress => true,
                         EpisodePlayingState::Stopped | EpisodePlayingState::Finished => false,
                     },
                     model.play_progress_bar.widget() {

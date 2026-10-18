@@ -17,7 +17,10 @@ use uuid::Uuid;
 use crate::{
     pages::recents::TimeBucket,
     settings::GenaralSettings,
-    workers::action_worker::action::{Action, HomeFeedData, SearchActionResultCategory},
+    workers::action_worker::{
+        action::{Action, HomeFeedData, SearchActionResultCategory},
+        podcast_recommendation::{current_country, top_charts},
+    },
 };
 
 /// Type-erased, shareable result payload. Different `Action` variants can
@@ -363,18 +366,41 @@ impl ActionWorker {
                 }
             }
             Action::FetchHomeFeed => {
-                let unfinished = match dbqueries::get_episodes() {
-                    Ok(episodes) => episodes
-                        .into_iter()
-                        .filter(|ep| ep.play_position() > 0 && ep.played().is_none())
-                        .collect(),
+                let (unfinished, missed) = match dbqueries::get_episodes() {
+                    Ok(episodes) => {
+                        // 1. Unfinished: Started but not completed
+                        let unfinished: Vec<Episode> = episodes
+                            .iter()
+                            .filter(|ep| ep.play_position() > 0 && ep.played().is_none())
+                            .take(10)
+                            .cloned()
+                            .collect();
+
+                        let mut missed: Vec<Episode> = episodes
+                            .into_iter()
+                            .filter(|ep| ep.play_position() == 0 && ep.played().is_none())
+                            .take(12)
+                            .collect();
+
+                        missed.sort_by(|a, b| b.epoch().cmp(&a.epoch()));
+
+                        (unfinished, missed)
+                    }
+                    Err(error) => {
+                        let _ = sender.output(ActionWorkerOutput::NotifyError(error.to_string()));
+                        (Vec::new(), Vec::new())
+                    }
+                };
+
+                let top_charts = match top_charts(&current_country(), 10).await {
+                    Ok(podcasts) => podcasts,
                     Err(error) => {
                         let _ = sender.output(ActionWorkerOutput::NotifyError(error.to_string()));
                         Vec::new()
                     }
                 };
 
-                let home_feed_data = HomeFeedData::new(unfinished);
+                let home_feed_data = HomeFeedData::new(unfinished, missed, top_charts);
 
                 let action_result: ActionResult = Arc::new(home_feed_data);
                 sender.input(ActionWorkerInput::TaskFinished(id, action_result));

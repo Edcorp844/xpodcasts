@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use gettextrs::gettext;
 use gst_play::PlayState;
 use podcasts_data::discovery::{search, FoundPodcast, SearchError, ALL_PLATFORM_IDS};
 use podcasts_data::{dbqueries, EpisodeId};
@@ -10,6 +11,9 @@ use uuid::Uuid;
 
 use crate::app_navigation_ext::PageController;
 use crate::components::found_podcast_ui::{FoundCardOutput, FoundPodcastsCard};
+use crate::components::episode_section::{
+    self, EpisodeSection, EpisodeSectionInput,
+};
 use crate::components::unfinished_episodes_section::{
     UnfinishedEpisodesSection, UnfinishedEpisodesSectionInput,
 };
@@ -25,6 +29,7 @@ pub struct HomePage {
     pub active_pages: HashMap<String, PageController>,
     task_id: Uuid,
     unfinished_episodes_controller: Controller<UnfinishedEpisodesSection>,
+    missed_episode_controller: Controller<EpisodeSection>,
 }
 
 #[derive(Debug)]
@@ -36,7 +41,7 @@ pub enum HomePageCommand {
 pub enum HomePageInput {
     ActionFinished(Uuid, ActionResult),
     FetchPodcasts,
-    PodcastsLoaded(Result<Vec<FoundPodcast>, SearchError>),
+    PodcastsLoaded(Vec<FoundPodcast>),
     Subscribe(String),
     PushPage(String),
     OpenPodcast(FoundPodcast),
@@ -91,25 +96,49 @@ impl Component for HomePage {
                                 set_hscrollbar_policy: gtk::PolicyType::Never,
 
                                 adw::Clamp {
-                                    set_maximum_size: 1400,
-                                    set_tightening_threshold: 1000,
+                                    set_maximum_size: 1800,
+                                    set_tightening_threshold: 1400,
 
                                     gtk::Box {
                                         set_orientation: gtk::Orientation::Vertical,
+                                        set_spacing: 20,
+                                        set_margin_all: 20,
+
                                         gtk::Label {
-                                            set_margin_top: 40,
-                                            set_margin_horizontal: 20,
+                                            set_margin_top: 20,
                                             set_label: "Home",
                                             set_halign:gtk::Align::Start,
-
-                                            add_css_class: "title-1"
+                                            inline_css: "font-weight: bold",
+                                            add_css_class: "large-title"
                                         },
 
                                         model.unfinished_episodes_controller.widget(){},
+                                        model.missed_episode_controller.widget(){},
+
+                                        gtk::Box {
+                                            // #[watch]
+                                            // set_visible: !model.podcasts.is_empty(),
+                                            set_orientation: gtk::Orientation::Horizontal,
+                                            set_halign: gtk::Align::Start,
+
+                                            set_spacing: 4,
+                                            inline_css: "margin-top: 16px;",
+
+                                            gtk::Label {
+                                                set_label: &gettext("Trending Shows"),
+                                                add_css_class: "title-3",
+                                                set_valign: gtk::Align::Center,
+                                            },
+
+                                            gtk::Image {
+                                                set_icon_name: Some("go-next-symbolic"),
+                                                inline_css: "opacity: 0.7; margin-left: 4px;",
+                                                set_valign: gtk::Align::Center,
+                                            },
+                                        },
 
                                         #[local_ref]
                                         podcast_grid -> gtk::FlowBox {
-                                            set_margin_all: 20,
                                             #[watch]
                                             set_visible: !model.is_loading,
                                         }
@@ -156,6 +185,8 @@ impl Component for HomePage {
         let unfinished_episodes_controller =
             UnfinishedEpisodesSection::builder().launch(()).detach();
 
+        let missed_episode_controller = EpisodeSection::builder().launch(()).detach();
+
         let model = HomePage {
             podcasts: FactoryVecDeque::builder().launch(grid).forward(
                 sender.input_sender(),
@@ -170,6 +201,7 @@ impl Component for HomePage {
             is_loading: true,
             task_id: Uuid::new_v4(),
             unfinished_episodes_controller,
+            missed_episode_controller,
         };
 
         // Resolve the reference for the local_ref macro parameter mapping step
@@ -214,22 +246,12 @@ impl Component for HomePage {
                 let _ = sender.output(HomPageOutput::Subscribe(feed));
             }
             HomePageInput::PodcastsLoaded(podcasts) => {
-                match podcasts {
-                    Ok(data) => {
-                        let mut guard = self.podcasts.guard();
-                        //guard.clear(); // Flush old elements cleanly
-                        for podcast in data {
-                            guard.push_back(podcast);
-                        }
-                    }
-                    Err(e) => {
-                        println!("Error: {}", e);
-                        let _ = sender.output(HomPageOutput::NotifyError(format!(
-                            "Podcast Search Error: {}",
-                            e.to_string()
-                        )));
-                    }
+                let mut guard = self.podcasts.guard();
+                //guard.clear(); // Flush old elements cleanly
+                for podcast in podcasts {
+                    guard.push_back(podcast);
                 }
+
                 self.is_loading = false;
             }
             HomePageInput::OpenPodcast(podcast) => {
@@ -307,37 +329,20 @@ impl Component for HomePage {
                     if let Some(feed_data) = result.downcast_ref::<HomeFeedData>() {
                         self.unfinished_episodes_controller.emit(
                             UnfinishedEpisodesSectionInput::SetEpisodes(
-                                feed_data.get_unfineshedEpisodes(),
+                                feed_data.get_unfineshed_episodes(),
                             ),
                         );
+                        self.missed_episode_controller.emit(
+                            EpisodeSectionInput::SetEpisodes(feed_data.get_missed_episodes()),
+                        );
+                        sender.input(HomePageInput::PodcastsLoaded(feed_data.get_top_charts()));
                     }
-                    // if let Ok(feed_data_arc) = result.downcast::<HomeFeedData>() {
-                    //     if let Ok(feed_data) = Arc::try_unwrap(feed_data_arc) {
-                    //         print!("home fed data: {feed_data:?}");
-                    //         self.unfinished_episodes_controller.emit(
-                    //             UnfinishedEpisodesSectionInput::SetEpisodes(
-                    //                 feed_data.get_unfineshedEpisodes(),
-                    //             ),
-                    //         );
-                    //     }
-                    // }
                 } else {
                     for (_, page) in &self.active_pages {
                         page.notify_action_finished(uuid, result.clone());
                     }
                 }
             }
-        }
-    }
-
-    fn update_cmd(
-        &mut self,
-        message: Self::CommandOutput,
-        sender: ComponentSender<Self>,
-        _: &Self::Root,
-    ) {
-        match message {
-            HomePageCommand::Podcasts(data) => sender.input(HomePageInput::PodcastsLoaded(data)),
         }
     }
 }

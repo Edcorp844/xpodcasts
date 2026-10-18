@@ -6,6 +6,8 @@ pub mod episode_list_item;
 pub mod found_podcast_ui;
 pub mod main_menu_button;
 pub mod miniplayer;
+pub mod episode_section;
+pub mod episode_section_tile;
 pub mod play_button;
 pub mod play_list;
 pub mod player_controls;
