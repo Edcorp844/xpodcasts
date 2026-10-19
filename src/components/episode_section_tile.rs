@@ -223,6 +223,7 @@ impl FactoryComponent for EpisodeSectionTile {
     view! {
         gtk::Box {
             set_width_request: 450,
+            set_height_request: 140,
             set_hexpand: false,
             set_orientation: gtk::Orientation::Horizontal,
             set_spacing: 16,

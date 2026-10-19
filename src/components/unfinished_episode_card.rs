@@ -129,8 +129,8 @@ impl FactoryComponent for UnfinishedEpisodeCard {
 
                 if let Some(texture) = &self.texture {
                     let css = format!(
-                        "border-radius: 24px; \
-                         box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32); \
+                        "border-radius: 20px; \
+                         box-shadow: 0 6px 14px rgba(0, 0, 0, 0.32); \
                          border: 1px solid alpha(@borders, 0.8); {}",
                         GradientColorExtractor::extract_css_gradient_from_texture(texture)
                     );
@@ -247,7 +247,7 @@ impl FactoryComponent for UnfinishedEpisodeCard {
             set_width_request: 275,
             set_halign: gtk::Align::Center,
             set_valign: gtk::Align::Start,
-            inline_css: "border-radius: 24px; border: 1px solid alpha(@borders, 0.8);",
+            inline_css: "border-radius: 20px; border: 1px solid alpha(@borders, 0.8); background: rgba(0,0,0,1); 0 6px 14px",
 
             // ---- Bottom layer: card content (gradient bg + labels) ----
             #[wrap(Some)]
@@ -363,7 +363,7 @@ impl FactoryComponent for UnfinishedEpisodeCard {
                 set_margin_start: 37,
                 set_margin_end: 37,
                 set_margin_bottom: 16,
-                inline_css: "background-color: mix(var(--window-bg-color), var(--card-fg-color), 0.1); border-radius: 16px; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);",
+                inline_css: "background-color: mix(var(--window-bg-color), var(--card-fg-color), 0.1); border-radius: 16px; box-shadow: 0 6px 14px rgba(0, 0, 0, 0.32);",
 
                 #[name="picture"]
                 gtk::Picture {
@@ -381,8 +381,8 @@ impl FactoryComponent for UnfinishedEpisodeCard {
                     #[watch]
                     set_label: &self.episode.title().trim().chars().take(2).collect::<String>().to_uppercase(),
                     set_css_classes: &["title-large", "dimmed"],
-                    set_width_request: 100,
-                    set_height_request: 100,
+                    set_height_request: 150,
+                    set_width_request: 150,
                     set_halign: gtk::Align::Fill,
                     set_valign: gtk::Align::Fill,
                     inline_css: "opacity: 0.25; font-weight: 800;",

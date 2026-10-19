@@ -1,4 +1,3 @@
-
 use chrono::{DateTime, Local, TimeZone};
 use gtk::glib;
 use podcasts_data::{discovery::FoundPodcast, errors::DataError};
@@ -118,9 +117,16 @@ pub struct LookupEntry {
 impl From<LookupEntry> for FoundPodcast {
     fn from(entry: LookupEntry) -> Self {
         let feed = entry.feed_url.unwrap_or_default();
-        let title = entry.collection_name.or(entry.track_name).unwrap_or_default();
+        let title = entry
+            .collection_name
+            .or(entry.track_name)
+            .unwrap_or_default();
         let author = entry.artist_name.unwrap_or_default();
-        let art = entry.artwork_url600.clone().or(entry.artwork_url100.clone()).unwrap_or_default();
+        let art = entry
+            .artwork_url600
+            .clone()
+            .or(entry.artwork_url100.clone())
+            .unwrap_or_default();
 
         let last_publication = entry
             .release_date
@@ -128,7 +134,8 @@ impl From<LookupEntry> for FoundPodcast {
             .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
             .map(|dt| dt.with_timezone(&Local));
 
-        let is_explicit = entry.collection_explicitness
+        let is_explicit = entry
+            .collection_explicitness
             .as_deref()
             .map(|s| s.eq_ignore_ascii_case("explicit"));
 
@@ -140,7 +147,7 @@ impl From<LookupEntry> for FoundPodcast {
             art,
             episode_count: entry.track_count,
             last_publication,
-            
+
             censored_name: entry.collection_censored_name,
             primary_genre: entry.primary_genre_name,
             genres: entry.genres,
@@ -170,7 +177,11 @@ pub async fn top_charts(country: &str, limit: u32) -> Result<Vec<FoundPodcast>, 
     let resp = client.get(&url).send().await?;
 
     if !resp.status().is_success() {
-        eprintln!("Apple Charts API returned status {} for {}", resp.status(), url);
+        eprintln!(
+            "Apple Charts API returned status {} for {}",
+            resp.status(),
+            url
+        );
         return Ok(Vec::new());
     }
 
@@ -230,31 +241,37 @@ pub async fn lookup_by_id(id: &str) -> Result<Option<FoundPodcast>, DataError> {
     Ok(response.results.into_iter().next().map(FoundPodcast::from))
 }
 
-pub fn current_country() -> String {
+pub fn current_locale() -> (String, String) {
     let env_vars = ["LANG", "LC_ALL", "LC_MESSAGES", "LANGUAGE"];
+
+    let mut candidates = Vec::new();
 
     for var in env_vars {
         if let Ok(val) = std::env::var(var) {
-            let base = val.split('.').next().unwrap_or(&val);
-            let base = base.split('@').next().unwrap_or(base);
-
-            if let Some((_, region)) = base.split_once('_') {
-                if region.len() == 2 && region.chars().all(|c| c.is_ascii_alphabetic()) {
-                    return region.to_lowercase();
-                }
-            }
+            candidates.push(val);
         }
     }
 
     for lang in glib::language_names() {
-        let s = lang.to_string();
-        let base = s.split('.').next().unwrap_or(&s);
-        if let Some((_, region)) = base.split_once('_') {
-            if region.len() == 2 && region.chars().all(|c| c.is_ascii_alphabetic()) {
-                return region.to_lowercase();
+        candidates.push(lang.to_string());
+    }
+
+    for val in candidates {
+        let base = val.split('.').next().unwrap_or(&val);
+        let base = base.split('@').next().unwrap_or(base);
+
+        if let Some((lang, region)) = base.split_once('_') {
+            if lang.len() == 2
+                && lang.chars().all(|c| c.is_ascii_alphabetic())
+                && region.len() == 2
+                && region.chars().all(|c| c.is_ascii_alphabetic())
+            {
+                // Return (Language, Country)
+                return (lang.to_lowercase(), region.to_lowercase());
             }
         }
     }
 
-    "us".to_string()
+    // Fallback if absolutely nothing is found
+    ("en".to_string(), "us".to_string())
 }

@@ -18,11 +18,17 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-use gettextrs::{LocaleCategory, bindtextdomain, setlocale, textdomain};
+
+use gettextrs::{bindtextdomain, setlocale, textdomain, LocaleCategory};
 use relm4::RelmApp;
-use xpodcasts::{RUNTIME, app::AppModel, components::app_menu::AppMenu, config};
+use xpodcasts::{app::AppModel, components::app_menu::AppMenu, config, RUNTIME};
 
 fn main() {
+    let _env_init = env_logger::builder()
+        .filter_level(log::LevelFilter::Debug)
+        .is_test(true)
+        .try_init();
+
     setlocale(LocaleCategory::LcAll, "");
     bindtextdomain(config::GETTEXT_PACKAGE, config::LOCALEDIR)
         .expect("Unable to bind the text domain");

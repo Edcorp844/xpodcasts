@@ -6,7 +6,7 @@ use std::{
 
 use podcasts_data::{
     dbqueries::{self, ShowFilter},
-    discovery::search,
+    discovery::{search, Itunes, Repository, FYYD},
     nextcloud_sync::{self, SyncError, SyncPolicy, SyncResult},
     Episode, EpisodeModel, Source, FEED_MANAGER,
 };
@@ -19,7 +19,7 @@ use crate::{
     settings::GenaralSettings,
     workers::action_worker::{
         action::{Action, HomeFeedData, SearchActionResultCategory},
-        podcast_recommendation::{current_country, top_charts},
+        podcast_recommendation::current_locale,
     },
 };
 
@@ -104,6 +104,7 @@ impl Worker for ActionWorker {
                 // is already in flight, so callers can't accidentally spawn
                 // duplicates of e.g. the nextcloud sync.
                 if self.pending_actions.contains_key(&id) {
+                    info!("Skiping task: {id}, Action : {action:?}, as it is already pending");
                     return;
                 }
 
@@ -251,6 +252,7 @@ impl ActionWorker {
                     reverse_order: true,
                 };
                 let data = dbqueries::get_podcasts_filter(&[], &filter);
+                info!("Fetched show action sending results.");
                 let action_result: ActionResult = Arc::new(data);
                 sender.input(ActionWorkerInput::TaskFinished(id, action_result));
             }
@@ -265,7 +267,7 @@ impl ActionWorker {
                             let bucket = TimeBucket::from_naive_datetime(episode.epoch());
                             grouped.entry(bucket).or_default().push(episode);
                         }
-
+                        info!("Fetched rececnts action sending {} result", grouped.len());
                         let action_result: ActionResult = Arc::new(grouped);
                         sender.input(ActionWorkerInput::TaskFinished(id, action_result));
                     }
@@ -347,6 +349,7 @@ impl ActionWorker {
 
                             match dbqueries::get_pd_episode_widgets(show, &filter) {
                                 Ok(episodes) => {
+                                    info!("Fetch Downlods sending {} results.", episodes.len());
                                     let action_result: ActionResult = Arc::new(episodes);
                                     sender
                                         .input(ActionWorkerInput::TaskFinished(id, action_result));
@@ -392,7 +395,24 @@ impl ActionWorker {
                     }
                 };
 
-                let top_charts = match top_charts(&current_country(), 10).await {
+                let search_platforms = GenaralSettings::new().get_search_platforms();
+                for id in search_platforms {
+                    match dbqueries::set_discovery_setting(&id, true) {
+                        Err(error) => {
+                            error!("Error Setting Search Platforms: {error:?}");
+                            let _ =
+                                sender.output(ActionWorkerOutput::NotifyError(error.to_string()));
+                        }
+                        Ok(_) => {
+                            info!("Search platforms set sucessfully");
+                        }
+                    }
+                }
+                let fyyd = FYYD::new();
+                let itunes = Itunes::new();
+                let (language, country) = current_locale();
+
+                let itunes_top_charts = match itunes.get_top(10, Some(&country)).await {
                     Ok(podcasts) => podcasts,
                     Err(error) => {
                         let _ = sender.output(ActionWorkerOutput::NotifyError(error.to_string()));
@@ -400,7 +420,16 @@ impl ActionWorker {
                     }
                 };
 
-                let home_feed_data = HomeFeedData::new(unfinished, missed, top_charts);
+                let fyyd_top_charts = match fyyd.get_top(10, Some(&language)).await {
+                    Ok(podcasts) => podcasts,
+                    Err(error) => {
+                        let _ = sender.output(ActionWorkerOutput::NotifyError(error.to_string()));
+                        Vec::new()
+                    }
+                };
+
+                let home_feed_data =
+                    HomeFeedData::new(unfinished, missed, itunes_top_charts, fyyd_top_charts);
 
                 let action_result: ActionResult = Arc::new(home_feed_data);
                 sender.input(ActionWorkerInput::TaskFinished(id, action_result));

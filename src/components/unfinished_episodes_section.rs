@@ -42,7 +42,7 @@ impl Component for UnfinishedEpisodesSection {
 
                 gtk::Label {
                     set_label: &gettext("Continue listening"),
-                    add_css_class: "title-3",
+                    add_css_class: "heading",
                     set_valign: gtk::Align::Center,
                 },
 
@@ -63,11 +63,11 @@ impl Component for UnfinishedEpisodesSection {
                 set_hscrollbar_policy: gtk::PolicyType::External,
                 set_vscrollbar_policy: gtk::PolicyType::Never,
                 set_propagate_natural_height: true,
-                set_margin_bottom: 20,
-
+                
                 #[local_ref]
                 episodes_container -> gtk::Box {
                     set_orientation: gtk::Orientation::Horizontal,
+                    set_margin_bottom: 20,
                     #[watch]
                     set_visible: !model.episodes.is_empty(),
                     set_spacing: 20,

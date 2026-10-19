@@ -18,13 +18,19 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use crate::discovery::data::*;
+use crate::{
+    dbqueries,
+    discovery::{data::*, platform_repo::Repository},
+};
 use anyhow::Result;
 use chrono::prelude::*;
 use serde::Deserialize;
 use url::Url;
 
-// curl "https://itunes.apple.com/search?term=chapo&entity=podcast&limit=10"
+// ==========================================
+// 1. Data Structures
+// ==========================================
+
 #[derive(Deserialize)]
 struct SearchResult {
     results: Vec<Podcast>,
@@ -51,7 +57,6 @@ struct Podcast {
     #[serde(rename = "artworkUrl60")]
     artwork_url_60: Option<UrlString>,
 
-    // New fields for the expanded FoundPodcast
     #[serde(rename = "collectionCensoredName")]
     collection_censored_name: Option<String>,
     #[serde(rename = "primaryGenreName")]
@@ -101,17 +106,164 @@ impl From<Podcast> for FoundPodcast {
     }
 }
 
-pub async fn search(query: &str, enabled: bool) -> Result<Vec<FoundPodcast>> {
-    if !enabled {
-        return Ok(vec![]);
+// ==========================================
+// 2. The Itunes Object
+// ==========================================
+
+pub struct Itunes {
+    base_url: String,
+    enabled: bool,
+}
+
+impl Itunes {
+    pub fn new() -> Self {
+        let settings = dbqueries::get_discovery_settings();
+        let itunes_on = *settings.get("itunes.apple.com").unwrap_or(&false);
+
+        Self {
+            base_url: "https://itunes.apple.com".to_string(),
+            enabled: itunes_on,
+        }
     }
-    let url = Url::parse_with_params(
-        "https://itunes.apple.com/search?entity=podcast&limit=10",
-        &[("term", query)],
-    )?;
-    let client = crate::downloader::client_builder().build()?;
-    let result: SearchResult = client.get(url).send().await?.json().await?;
-    Ok(result.results.into_iter().map(|p| p.into()).collect())
+
+    /// Look up a single Apple Podcasts show by its numeric ID.
+    pub async fn lookup_by_id(&self, id: &str) -> Result<Option<FoundPodcast>> {
+        if !self.enabled {
+            return Ok(None);
+        }
+
+        let url = Url::parse_with_params(
+            &format!("{}/lookup", self.base_url),
+            &[("id", id), ("entity", "podcast")],
+        )?;
+
+        let client = crate::downloader::client_builder()
+            .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36")
+            .build()?;
+
+        let resp = client.get(url).send().await?;
+
+        if !resp.status().is_success() {
+            eprintln!("iTunes Lookup API returned status {}", resp.status());
+            return Ok(None);
+        }
+
+        let response: SearchResult = match resp.json().await {
+            Ok(json) => json,
+            Err(err) => {
+                eprintln!("Failed to parse lookup JSON: {}", err);
+                return Ok(None);
+            }
+        };
+
+        Ok(response.results.into_iter().next().map(FoundPodcast::from))
+    }
+
+    /// Fetch the Apple Podcasts top charts for a specific country.
+    pub async fn get_top_charts(&self, country: &str, limit: u32) -> Result<Vec<FoundPodcast>> {
+        if !self.enabled {
+            return Ok(vec![]);
+        }
+
+        let limit = limit.clamp(1, 100);
+        let url = format!(
+            "https://rss.marketingtools.apple.com/api/v2/{}/podcasts/top/{}/podcasts.json",
+            country, limit
+        );
+
+        let client = crate::downloader::client_builder()
+            .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36")
+            .build()?;
+
+        let resp = client.get(&url).send().await?;
+
+        if !resp.status().is_success() {
+            eprintln!(
+                "Apple Charts API returned status {} for {}",
+                resp.status(),
+                url
+            );
+            return Ok(vec![]);
+        }
+
+        #[derive(Deserialize)]
+        struct ChartsResponse {
+            feed: ChartsFeed,
+        }
+        #[derive(Deserialize)]
+        struct ChartsFeed {
+            results: Vec<ChartEntry>,
+        }
+        #[derive(Deserialize)]
+        struct ChartEntry {
+            id: String,
+        }
+
+        let response: ChartsResponse = match resp.json().await {
+            Ok(json) => json,
+            Err(err) => {
+                eprintln!("Failed to parse chart JSON: {}", err);
+                return Ok(vec![]);
+            }
+        };
+
+        let mut out = Vec::with_capacity(response.feed.results.len());
+
+        for entry in response.feed.results {
+            match self.lookup_by_id(&entry.id).await {
+                Ok(Some(podcast)) => {
+                    if !podcast.feed.is_empty() {
+                        out.push(podcast);
+                    }
+                }
+                Ok(None) => {}
+                Err(err) => {
+                    eprintln!("lookup failed for {}: {}", entry.id, err);
+                }
+            }
+            // Pacing for Apple API rate limits
+            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        }
+
+        Ok(out)
+    }
+}
+
+// ==========================================
+// 3. Repository Trait Implementation
+// ==========================================
+
+impl Repository for Itunes {
+    async fn search(&self, query: &str) -> Result<Vec<FoundPodcast>> {
+        if !self.enabled {
+            return Ok(vec![]);
+        }
+
+        let url = Url::parse_with_params(
+            &format!("{}/search?entity=podcast&limit=10", self.base_url),
+            &[("term", query)],
+        )?;
+
+        let client = crate::downloader::client_builder()
+            .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36")
+            .build()?;
+
+        let resp = client.get(url).send().await?;
+
+        if !resp.status().is_success() {
+            eprintln!("iTunes Search API returned status {}", resp.status());
+            return Ok(vec![]);
+        }
+
+        let result: SearchResult = resp.json().await?;
+        Ok(result.results.into_iter().map(|p| p.into()).collect())
+    }
+
+    async fn get_top(&self, limit: i32, language: Option<&str>) -> Result<Vec<FoundPodcast>> {
+        let country = language.unwrap_or("us");
+
+        self.get_top_charts(country, limit as u32).await
+    }
 }
 
 #[cfg(test)]

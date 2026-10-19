@@ -23,19 +23,22 @@ pub enum Action {
 pub struct HomeFeedData {
     unfinished: Vec<Episode>,
     missed: Vec<Episode>,
-    top_charts: Vec<FoundPodcast>,
+    itunes_top_charts: Vec<FoundPodcast>,
+    fyyd_top_charts: Vec<FoundPodcast>,
 }
 
 impl HomeFeedData {
     pub fn new(
         unfinished: Vec<Episode>,
         missed: Vec<Episode>,
-        top_charts: Vec<FoundPodcast>,
+        itunes_top_charts: Vec<FoundPodcast>,
+        fyyd_top_charts: Vec<FoundPodcast>,
     ) -> Self {
         Self {
             unfinished,
             missed,
-            top_charts,
+            itunes_top_charts,
+            fyyd_top_charts,
         }
     }
 
@@ -43,8 +46,12 @@ impl HomeFeedData {
         self.unfinished.clone()
     }
 
-    pub fn get_top_charts(&self) -> Vec<FoundPodcast> {
-        self.top_charts.clone()
+    pub fn get_itunes_top_charts(&self) -> Vec<FoundPodcast> {
+        self.itunes_top_charts.clone()
+    }
+
+    pub fn get_fyyd_top_charts(&self) -> Vec<FoundPodcast> {
+        self.fyyd_top_charts.clone()
     }
 
     pub fn get_missed_episodes(&self) -> Vec<Episode> {

@@ -6,8 +6,6 @@ use std::collections::HashMap;
 
 use crate::components::episode_section_tile::EpisodeSectionTile;
 
-
-
 #[derive(Debug)]
 pub struct EpisodeSection {
     // One FactoryVecDeque per column
@@ -49,7 +47,7 @@ impl Component for EpisodeSection {
 
                 gtk::Label {
                     set_label: &gettext("You May have Missed"),
-                    add_css_class: "title-3",
+                    add_css_class: "heading",
                     set_valign: gtk::Align::Center,
                 },
 
@@ -69,30 +67,35 @@ impl Component for EpisodeSection {
                 gtk::Box {
                     set_orientation: gtk::Orientation::Horizontal,
                     set_spacing: 16,
+                    set_margin_bottom: 8,
 
 
                     #[local_ref]
                     episodes_container1 -> gtk::Box {
                         set_orientation: gtk::Orientation::Vertical,
                         set_spacing: 8,
+                        set_margin_bottom: 8,
                     },
 
                     #[local_ref]
                     episodes_container2 -> gtk::Box {
                         set_orientation: gtk::Orientation::Vertical,
                          set_spacing: 8,
+                         set_margin_bottom: 8,
                     },
 
                     #[local_ref]
                     episodes_container3 -> gtk::Box {
                         set_orientation: gtk::Orientation::Vertical,
                          set_spacing: 8,
+                         set_margin_bottom: 8,
                     },
 
                     #[local_ref]
                     episodes_container4 -> gtk::Box {
                         set_orientation: gtk::Orientation::Vertical,
                          set_spacing: 8,
+                         set_margin_bottom: 8,
                     }
                 }
             }
@@ -124,7 +127,7 @@ impl Component for EpisodeSection {
             col_3: FactoryVecDeque::builder().launch(parent_3).detach(),
             col_4: FactoryVecDeque::builder().launch(parent_4).detach(),
             index_by_id: HashMap::new(),
-            rows
+            rows,
         };
 
         let episodes_container1 = model.col_1.widget();

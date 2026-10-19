@@ -1,11 +1,11 @@
 use adw::prelude::*;
 use gst_play::PlayState;
 use podcasts_data::{
-    EpisodeId, Show,
     dbqueries::{self, ShowFilter},
     errors::DataError,
+    EpisodeId, Show,
 };
-use relm4::{Component, ComponentParts, ComponentSender, prelude::*};
+use relm4::{prelude::*, Component, ComponentParts, ComponentSender};
 use uuid::Uuid;
 
 use crate::{components::show_card::ShowCard, workers::action_worker::worker::ActionResult};
@@ -55,6 +55,7 @@ impl Component for NewPage {
             .column_spacing(20)
             .row_spacing(40)
             .homogeneous(true)
+            .valign(gtk::Align::Start)
             .build();
 
         // Attach your dynamic width column calculating callback hook

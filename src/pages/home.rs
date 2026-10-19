@@ -9,7 +9,9 @@ use uuid::Uuid;
 
 use crate::app_navigation_ext::PageController;
 use crate::components::episode_section::{EpisodeSection, EpisodeSectionInput};
-use crate::components::podcast_section::{PodcastSection, PodcastSectionInput};
+use crate::components::podcast_section::{
+    PodcastSection, PodcastSectionInput, PodcastSectionOutput,
+};
 use crate::components::unfinished_episodes_section::{
     UnfinishedEpisodesSection, UnfinishedEpisodesSectionInput,
 };
@@ -23,7 +25,8 @@ pub struct HomePage {
     task_id: Uuid,
     unfinished_episodes_controller: Controller<UnfinishedEpisodesSection>,
     missed_episode_controller: Controller<EpisodeSection>,
-    top_podcasts_controller: Controller<PodcastSection>,
+    itunes_top_podcasts_controller: Controller<PodcastSection>,
+    fyyd_top_podcasts_controller: Controller<PodcastSection>,
 }
 
 #[derive(Debug)]
@@ -106,8 +109,10 @@ impl Component for HomePage {
                                         },
 
                                         model.unfinished_episodes_controller.widget(){},
+                                        model.itunes_top_podcasts_controller.widget(){},
                                         model.missed_episode_controller.widget(){},
-                                        model.top_podcasts_controller.widget(){}
+                                         model.fyyd_top_podcasts_controller.widget(){},
+
 
                                     }
                                 }
@@ -128,14 +133,33 @@ impl Component for HomePage {
 
         let missed_episode_controller = EpisodeSection::builder().launch(2).detach();
 
-        let top_podcasts_controller = PodcastSection::builder().launch(()).detach();
+        let itunes_top_podcasts_controller =
+            PodcastSection::builder()
+                .launch(())
+                .forward(sender.input_sender(), move |message| match message {
+                    PodcastSectionOutput::OpenPodcastPage(found_podcast) => {
+                        HomePageInput::OpenPodcast(found_podcast)
+                    }
+                    PodcastSectionOutput::Subscribe(feed) => HomePageInput::Subscribe(feed),
+                });
+
+        let fyyd_top_podcasts_controller =
+            PodcastSection::builder()
+                .launch(())
+                .forward(sender.input_sender(), move |message| match message {
+                    PodcastSectionOutput::OpenPodcastPage(found_podcast) => {
+                        HomePageInput::OpenPodcast(found_podcast)
+                    }
+                    PodcastSectionOutput::Subscribe(feed) => HomePageInput::Subscribe(feed),
+                });
 
         let model = HomePage {
             active_pages: HashMap::new(),
             task_id: Uuid::new_v4(),
             unfinished_episodes_controller,
             missed_episode_controller,
-            top_podcasts_controller,
+            itunes_top_podcasts_controller,
+            fyyd_top_podcasts_controller,
         };
 
         let widgets = view_output!();
@@ -244,8 +268,15 @@ impl Component for HomePage {
                                 feed_data.get_missed_episodes(),
                             ));
 
-                        self.top_podcasts_controller
-                            .emit(PodcastSectionInput::SetPodcasts(feed_data.get_top_charts()));
+                        self.itunes_top_podcasts_controller
+                            .emit(PodcastSectionInput::SetPodcasts(
+                                feed_data.get_itunes_top_charts(),
+                            ));
+
+                        self.fyyd_top_podcasts_controller
+                            .emit(PodcastSectionInput::SetPodcasts(
+                                feed_data.get_fyyd_top_charts(),
+                            ));
                     } else {
                         println!("Result was not HomeFeedData"); // <--- ADD THIS
                     }

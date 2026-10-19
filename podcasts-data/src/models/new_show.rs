@@ -1,6 +1,7 @@
 // new_show.rs
 //
 // Copyright 2017 Jordan Petridis <jpetridis@gnome.org>
+// Copyright 2026 Frost Edson <frost@example.com> (Modified for extended metadata)
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -47,6 +48,19 @@ pub(crate) struct NewShow {
     image_uri_hash: Option<Vec<u8>>,
     image_cached: Option<NaiveDateTime>,
     source_id: SourceId,
+
+    // --- NEW EXTENDED METADATA ---
+    censored_name: Option<String>,
+    primary_genre: Option<String>,
+    genres: Option<String>,
+    genre_ids: Option<String>,
+    is_explicit: Option<bool>,
+    content_advisory_rating: Option<String>,
+    apple_url: Option<String>,
+    artwork_url_30: Option<String>,
+    artwork_url_60: Option<String>,
+    artwork_url_100: Option<String>,
+    track_time_millis: Option<i64>,
 }
 
 impl Insert<()> for NewShow {
@@ -82,8 +96,6 @@ impl Update<(), ShowId> for NewShow {
     }
 }
 
-// TODO: Maybe return an Enum<Action(Resut)> Instead.
-// It would make unti testing better too.
 impl Index<(), ShowId> for NewShow {
     type Error = DataError;
 
@@ -111,6 +123,8 @@ impl PartialEq<NewShow> for NewShow {
             && (self.image_uri() == other.image_uri())
             && (self.description() == other.description())
             && (self.source_id() == other.source_id())
+            && (self.primary_genre() == other.primary_genre())
+            && (self.is_explicit() == other.is_explicit())
     }
 }
 
@@ -121,6 +135,8 @@ impl PartialEq<Show> for NewShow {
             && (self.image_uri() == other.image_uri())
             && (self.description() == other.description())
             && (self.source_id() == other.source_id())
+            && (self.primary_genre() == other.primary_genre())
+            && (self.is_explicit() == other.is_explicit())
     }
 }
 
@@ -131,17 +147,14 @@ impl NewShow {
         let link = url_cleaner(chan.link().trim());
 
         let description = ammonia::Builder::new()
-            // Remove `rel` attributes from `<a>` tags
             .link_rel(None)
             .clean(chan.description().trim())
             .to_string();
 
-        // Try to get the itunes img first
         let itunes_img = chan
             .itunes_ext()
             .and_then(|s| s.image().map(|url| url.trim()))
             .map(|s| s.to_owned());
-        // If itunes is None, try to get the channel.image from the rss spec
         let image_uri = itunes_img.or_else(|| chan.image().map(|s| s.url().trim().to_owned()));
 
         let mut hash: Option<Vec<u8>> = None;
@@ -161,14 +174,12 @@ impl NewShow {
             .unwrap()
     }
 
-    // Look out for when tryinto lands into stable.
     pub(crate) fn to_podcast(&self) -> Result<Show, DataError> {
         self.index()?;
         dbqueries::get_podcast_from_source_id(self.source_id)
     }
 }
 
-// Ignore the following geters. They are used in unit tests mainly.
 impl NewShow {
     pub(crate) fn source_id(&self) -> SourceId {
         self.source_id
@@ -188,6 +199,14 @@ impl NewShow {
 
     pub(crate) fn image_uri(&self) -> Option<&str> {
         self.image_uri.as_deref()
+    }
+
+    pub(crate) fn primary_genre(&self) -> Option<&str> {
+        self.primary_genre.as_deref()
+    }
+
+    pub(crate) fn is_explicit(&self) -> Option<bool> {
+        self.is_explicit
     }
 
     #[cfg(test)]

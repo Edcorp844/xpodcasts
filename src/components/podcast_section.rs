@@ -46,7 +46,7 @@ impl Component for PodcastSection {
 
                 gtk::Label {
                     set_label: &gettext("Trending Shows"),
-                    add_css_class: "title-3",
+                    add_css_class: "heading",
                     set_valign: gtk::Align::Center,
                 },
 

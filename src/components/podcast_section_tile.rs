@@ -152,7 +152,8 @@ impl FactoryComponent for PodcastSectionTile {
         let url_string = podcast.art.clone();
 
         sender.oneshot_command(async move {
-            let downloaded_texture = fetch_cached_image(&url_string, ImageSize::default()).await;
+            let downloaded_texture =
+                fetch_cached_image(&url_string, ImageSize::from_dimesion(600)).await;
             PodcastSectionTileCmdInput::DownloadImage(downloaded_texture)
         });
 
@@ -168,10 +169,14 @@ impl FactoryComponent for PodcastSectionTile {
                 self.texture = fetched_texture;
             }
             PodcastSectionTileInput::Subscribe => {
-                let _ = sender.output(PodcastSectionTileOutput::Subscribe(self.podcast.feed.clone()));
+                let _ = sender.output(PodcastSectionTileOutput::Subscribe(
+                    self.podcast.feed.clone(),
+                ));
             }
             PodcastSectionTileInput::OpenPodcastPage => {
-                let _ = sender.output(PodcastSectionTileOutput::OpenPodcastPage(self.podcast.clone()));
+                let _ = sender.output(PodcastSectionTileOutput::OpenPodcastPage(
+                    self.podcast.clone(),
+                ));
             }
         }
     }
