@@ -16,13 +16,9 @@ use crate::{
         play_button::{
             EpisodePlayingState, PlayButton, PlayButtonInitData, PlayButtonInput, PlayButtonOutput,
         },
-    },
-    pages::all_episodes::{AllEpisodesPage, AllEpisodesPageInput, AllEpisodesPageOutput},
-    util::{
-        cover_image::{fetch_cached_image, ImageSize},
-        episode_description_parser,
-    },
-    workers::action_worker::{action::Action, worker::ActionResult},
+    }, get_horizontal_size_class, pages::all_episodes::{AllEpisodesPage, AllEpisodesPageInput, AllEpisodesPageOutput}, util::{
+        cover_image::{ImageSize, fetch_cached_image}, episode_description_parser,
+    }, workers::action_worker::{action::Action, worker::ActionResult},
 };
 
 #[derive(Debug)]
@@ -137,6 +133,8 @@ impl Component for ShowPage {
                                                 set_valign: gtk::Align::Fill,
 
                                                 inline_css: "background-color: mix(@window_bg_color, @card_fg_color, 0.1); border-radius: 16px; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32); border: 1px solid alpha(@borders, 0.8);",
+
+                                                
 
                                                 gtk::Label {
                                                     #[watch]

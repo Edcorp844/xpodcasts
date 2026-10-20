@@ -6,10 +6,7 @@ use adw::prelude::WidgetExt;
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::{
-    app_navigation_ext::{NavigationPage, PageController},
-    workers::action_worker::worker::PODCAST_SEARCH_ID,
-};
+use crate::app_navigation_ext::{NavigationPage, PageController};
 use adw;
 use relm4::{adw::prelude::*, prelude::*, Component, ComponentSender, Controller};
 
@@ -50,6 +47,8 @@ pub struct AppModel {
     player: Controller<GStreamerWorker>,
     database: Controller<DatabaseWoker>,
     is_loading: bool,
+    compact_layout: bool,
+    is_narrow: bool,
 }
 
 #[derive(Debug)]
@@ -93,6 +92,7 @@ pub enum AppModelInput {
     Seekforward,
     SeekBakward,
     RequestSearch(Uuid, String, SearchActionResultCategory),
+    NavigationBreakpointChanged(bool),
     None,
 }
 
@@ -107,132 +107,130 @@ impl Component for AppModel {
     type CommandOutput = ();
 
     view! {
-        adw::ApplicationWindow {
-            set_default_size: (1080 ,800),
+            adw::ApplicationWindow {
+                set_default_size: (1080 ,800),
+                #[wrap(Some)]
+                #[name = "nav_view"]
+                set_content = &adw::NavigationView {
+                    add=&adw::NavigationPage {
+                        set_title: "XPodcats",
+                        #[wrap(Some)]
+                        #[name="split_view"]
+                        set_child=&adw::OverlaySplitView {
+                        #[watch]
+                        set_show_sidebar: !model.compact_layout,
 
-            #[wrap(Some)]
-            #[name = "nav_view"]
-            set_content = &adw::NavigationView {
-                add=&adw::NavigationPage {
-                    set_title: "XPodcats",
-                    #[wrap(Some)]
-                    set_child=&adw::OverlaySplitView {
-                    #[watch]
-                    set_show_sidebar: model.is_sidebar_visible,
+                        set_pin_sidebar: true,
+                        set_sidebar_position: gtk::PackType::Start,
 
-                    set_pin_sidebar: true,
-                    set_sidebar_position: gtk::PackType::Start,
-
-                    connect_collapsed_notify => move |view| {
-                        AppModelInput::SetSidebarCollapsed(view.is_collapsed());
-                    },
-
-                    #[wrap(Some)]
-                    set_sidebar =  &adw::ToolbarView {
-                        add_top_bar = &adw::HeaderBar {
-                            #[name(search_button)]
-                            pack_start = &gtk::ToggleButton {
-                                set_icon_name: "edit-find-symbolic",
-                                set_tooltip: "Search",
-                                add_css_class: "flat",
-
-                                connect_clicked[sender] => move |btn| {
-                                        sender.input(AppModelInput::ToggleShowSearchPage(btn.is_active()));
-                                }
-                            },
-                            pack_end = model.main_menu_button.widget(),
+                        connect_collapsed_notify => move |view| {
+                            AppModelInput::SetSidebarCollapsed(view.is_collapsed());
                         },
 
                         #[wrap(Some)]
-                        set_content = &adw::Sidebar{
+                        set_sidebar =  &adw::ToolbarView {
+                            add_top_bar = &adw::HeaderBar {
+                                #[name(search_button)]
+                                pack_start = &gtk::ToggleButton {
+                                    set_icon_name: "edit-find-symbolic",
+                                    set_tooltip: "Search",
+                                    add_css_class: "flat",
 
-
-                            append = adw::SidebarSection {
-                                append= adw::SidebarItem{
-                                    set_icon_name: Some("user-home-symbolic"),
-                                    set_title: Some(&gettext("Home")),
+                                    connect_clicked[sender] => move |btn| {
+                                            sender.input(AppModelInput::ToggleShowSearchPage(btn.is_active()));
+                                    }
                                 },
-                                 append= adw::SidebarItem{
-                                    set_icon_name: Some("view-grid-symbolic"),
-                                    set_title: Some(&gettext("New"))
-                                }
-                            },
-                            append = adw::SidebarSection {
-                                set_title: Some(&gettext("Library")),
-                                append= adw::SidebarItem{
-                                    set_icon_name: Some("emoji-recent-symbolic"),
-                                    set_title: Some(&gettext("Recently updated"))
-                                },
-                                 append= adw::SidebarItem{
-                                    set_icon_name: Some("file-cabinet-symbolic"),
-                                    set_title: Some(&gettext("Shows"))
-                                },
-                                 append= adw::SidebarItem{
-                                    set_icon_name: Some("folder-download-symbolic"),
-                                    set_title: Some(&gettext("Downloaded")),
-                                }
+                                pack_end = model.main_menu_button.widget(),
                             },
 
-                            connect_activated[sender] => move |bar, _index| {
-                                if let Some(item) = bar.selected_item() {
-                                    if let Some(title) = item.title() {
-                                        let title = title.as_str();
-                                        if title == gettext("Home") {
-                                            sender.input(AppModelInput::SelectPage(NavigationPage::Home));
-                                        } else if title == gettext("New") {
-                                            sender.input(AppModelInput::SelectPage(NavigationPage::New));
-                                        } else if title == gettext("Recently updated") {
-                                            sender.input(AppModelInput::SelectPage(NavigationPage::Recents));
-                                        } else if title == gettext("Shows") {
-                                            sender.input(AppModelInput::SelectPage(NavigationPage::Shows));
-                                        } else if title == gettext("Downloaded") {
-                                            sender.input(AppModelInput::SelectPage(NavigationPage::Downloads));
+                            #[wrap(Some)]
+                            set_content = &adw::Sidebar{
+
+
+                                append = adw::SidebarSection {
+                                    append= adw::SidebarItem{
+                                        set_icon_name: Some(&NavigationPage::Home.icon_name()),
+                                        set_title: Some(&NavigationPage::Home.title()),
+                                    },
+                                     append= adw::SidebarItem{
+                                       set_icon_name: Some(&NavigationPage::New.icon_name()),
+                                        set_title: Some(&NavigationPage::New.title()),
+                                    }
+                                },
+                                append = adw::SidebarSection {
+                                    set_title: Some(&gettext("Library")),
+                                    append= adw::SidebarItem{
+                                        set_icon_name: Some(&NavigationPage::Recents.icon_name()),
+                                        set_title: Some(&NavigationPage::Recents.title()),
+                                    },
+                                     append= adw::SidebarItem{
+                                        set_icon_name: Some(&NavigationPage::Shows.icon_name()),
+                                        set_title: Some(&NavigationPage::Shows.title()),
+                                    },
+                                     append= adw::SidebarItem{
+                                       set_icon_name: Some(&NavigationPage::Downloads.icon_name()),
+                                        set_title: Some(&NavigationPage::Downloads.title()),
+                                    }
+                                },
+
+                                connect_activated[sender] => move |bar, _index| {
+                                    if let Some(item) = bar.selected_item() {
+                                        if let Some(title) = item.title() {
+                                            let title = title.as_str();
+                                            sender.input(AppModelInput::SelectPage(NavigationPage::from_name(title)));
                                         }
                                     }
                                 }
+
+                            },
+                        },
+
+                        #[wrap(Some)]
+                        #[name = "toast_overlay"]
+                        set_content = &adw::ToastOverlay {
+                            adw::NavigationPage {
+                                set_tag: Some("main-content"),
+                                set_title: "Podcasts",
+
+                                #[wrap(Some)]
+                                set_child = &adw::ToolbarView {
+                                    add_top_bar = &gtk::Box {
+                                        set_orientation: gtk::Orientation::Vertical,
+                                        model.miniplayer.widget(),
+                                        gtk::Separator {
+                                            inline_css: "min-height: 2px; border: none; background: linear-gradient(90deg, rgba(0, 122, 255, 0) 0%, #007AFF 25%, #AF52DE 50%, #FF2D55 75%, rgba(255, 45, 85, 0) 100% ); background-size: 200% 100%; animation: shimmer-flow 1.5s infinite linear;",
+                                            #[watch]
+                                            set_visible: model.is_loading,
+                                            set_halign: gtk::Align::Fill,
+                                        },
+                                    },
+
+
+
+                                 #[wrap(Some)]
+    #[name = "content_bin"]
+    set_content = &adw::Bin {
+        #[wrap(Some)]
+        #[name = "mobile_stack"]
+        set_child = &adw::ViewStack {},
+    },
+
+    #[name = "mobile_switcher_bar"]
+    add_bottom_bar = &adw::ViewSwitcherBar {
+        #[watch]
+        set_visible: model.compact_layout,
+        set_reveal: true,
+        set_stack: Some(&mobile_stack),
+    },
+
+                                },
                             }
                         },
                     },
-
-                    #[wrap(Some)]
-                    #[name = "toast_overlay"]
-                    set_content = &adw::ToastOverlay {
-                        adw::NavigationPage {
-                            set_tag: Some("main-content"),
-                            set_title: "Podcasts",
-
-                            #[wrap(Some)]
-                            set_child = &adw::ToolbarView {
-                                add_top_bar = &gtk::Box {
-                                    set_orientation: gtk::Orientation::Vertical,
-                                    model.miniplayer.widget(),
-                                    gtk::Separator {
-                                        inline_css: "min-height: 2px; border: none; background: linear-gradient(90deg, rgba(0, 122, 255, 0) 0%, #007AFF 25%, #AF52DE 50%, #FF2D55 75%, rgba(255, 45, 85, 0) 100% ); background-size: 200% 100%; animation: shimmer-flow 1.5s infinite linear;",
-                                        #[watch]
-                                        set_visible: model.is_loading,
-                                        set_halign: gtk::Align::Fill,
-                                    },
-                                },
-
-                                #[wrap(Some)]
-                                #[name = "content_bin"]
-                                set_content =  &adw::Bin {
-                                    #[watch]
-                                    set_child: if model.is_search_page_visible {
-                                        Some(model.search_page.widget())
-                                    } else {
-                                        model.pages_cache.get(&model.current_page_key).map(|c| c.widget())
-                                    }
-                                }
-
-                            },
-                        }
-                    },
                 },
-            },
+                }
             }
         }
-    }
 
     fn init(
         _init: Self::Init,
@@ -245,7 +243,7 @@ impl Component for AppModel {
                 .forward(sender.input_sender(), move |message| match message {
                     ActionWorkerOutput::NotifyError(error) => AppModelInput::NotifyError(error),
                     ActionWorkerOutput::RefreshAllPages => AppModelInput::None,
-                    ActionWorkerOutput::ActionStarted(id) => AppModelInput::StartLoading,
+                    ActionWorkerOutput::ActionStarted(_id) => AppModelInput::StartLoading,
                     ActionWorkerOutput::ActionsCompleted => AppModelInput::StopLoading,
                     ActionWorkerOutput::ActionCompleted(id, result) => {
                         AppModelInput::ActionFinished(id, result)
@@ -292,7 +290,7 @@ impl Component for AppModel {
             .launch(())
             .forward(sender.input_sender(), |msg| match msg {
                 SearchPageOutput::Subscribe(feed) => AppModelInput::Subscribe(feed),
-                SearchPageOutput::UpdateISSearching(state) => AppModelInput::None,
+                SearchPageOutput::UpdateISSearching(_state) => AppModelInput::None,
                 SearchPageOutput::TogglePlay(episode) => AppModelInput::TogglePlay(episode),
                 SearchPageOutput::NotifyError(error) => AppModelInput::NotifyError(error),
                 SearchPageOutput::RequestDownload(episode_id) => {
@@ -415,10 +413,110 @@ impl Component for AppModel {
             is_loading: false,
             player,
             database,
+            compact_layout: false,
+            is_narrow: false,
         };
         // Generates the correct modern auto-derived struct layout type
         let widgets = view_output!();
 
+        let narrow_bp =
+            adw::Breakpoint::new(adw::BreakpointCondition::parse("max-width: 760px").unwrap());
+        root.add_breakpoint(narrow_bp);
+
+        let s = sender.clone();
+        root.connect_current_breakpoint_notify(move |window| {
+            s.input(AppModelInput::NavigationBreakpointChanged(
+                window.current_breakpoint().is_some(),
+            ));
+        });
+
+        widgets
+            .mobile_switcher_bar
+            .set_stack(Some(&widgets.mobile_stack));
+        widgets.mobile_switcher_bar.set_reveal(true);
+
+        // Home (real, already cached)
+        if let Some(home) = model.pages_cache.get(&NavigationPage::Home.to_key()) {
+            widgets.mobile_stack.add_titled_with_icon(
+                home.widget(),
+                Some(&NavigationPage::Home.to_key()),
+                &NavigationPage::Home.title(),
+                &NavigationPage::Home.icon_name(),
+            );
+        }
+
+        // New (placeholder — built on first SelectPage)
+        widgets.mobile_stack.add_titled_with_icon(
+            &adw::Bin::new(),
+            Some(&NavigationPage::New.to_key()),
+            &NavigationPage::New.title(),
+            &NavigationPage::New.icon_name(),
+        );
+
+        // Library (a NavigationView wrapping the library list)
+        {
+            let library_nav = adw::NavigationView::new();
+            let list = gtk::ListBox::builder()
+                .css_classes(["boxed-list"])
+                .selection_mode(gtk::SelectionMode::None)
+                .margin_top(24)
+                .margin_bottom(24)
+                .margin_start(24)
+                .margin_end(24)
+                .build();
+            for page in [
+                NavigationPage::Recents,
+                NavigationPage::Shows,
+                NavigationPage::Downloads,
+            ] {
+                let row = adw::ActionRow::builder()
+                    .title(page.title())
+                    .activatable(true)
+                    .build();
+                row.add_prefix(&gtk::Image::from_icon_name(&page.icon_name()));
+                row.add_suffix(&gtk::Image::from_icon_name("go-next-symbolic"));
+
+                let s = sender.clone();
+                let page_for_click = page.clone(); // <-- clone once per row
+                row.connect_activated(move |_| {
+                    s.input(AppModelInput::SelectPage(page_for_click.clone()));
+                });
+                list.append(&row);
+            }
+
+            let scrolled = gtk::ScrolledWindow::builder()
+                .hscrollbar_policy(gtk::PolicyType::Never)
+                .vexpand(true)
+                .child(&list)
+                .build();
+
+            library_nav.push(
+                &adw::NavigationPage::builder()
+                    .title(gettext("Library"))
+                    .child(&scrolled)
+                    .build(),
+            );
+
+            widgets.mobile_stack.add_titled_with_icon(
+                &library_nav,
+                Some("library"),
+                &gettext("Library"),
+                "library-symbolic",
+            );
+        }
+
+        // Search (real)
+        widgets.mobile_stack.add_titled_with_icon(
+            model.search_page.widget(),
+            Some("search"),
+            &gettext("Search"),
+            "edit-find-symbolic",
+        );
+
+        // Start on Home.
+        widgets
+            .mobile_stack
+            .set_visible_child_name(&NavigationPage::Home.to_key());
         ComponentParts { model, widgets }
     }
 
@@ -580,13 +678,29 @@ impl Component for AppModel {
                     };
 
                     self.pages_cache.insert(key.clone(), controller);
+
+                    // Swap the placeholder (New) or add fresh (Recents/Shows/Downloads).
+                    // Both share the same key, so first remove any child under that name.
+                    while let Some(existing) = widgets.mobile_stack.child_by_name(&key) {
+                        widgets.mobile_stack.remove(&existing);
+                    }
+                    if let Some(c) = self.pages_cache.get(&key) {
+                        widgets.mobile_stack.add_titled_with_icon(
+                            c.widget(),
+                            Some(&key),
+                            &page.title(),
+                            &page.icon_name(),
+                        );
+                    }
                 }
 
                 // 3. Update active page and UI view
-                self.current_page_key = key;
-                if let Some(cached_page) = self.pages_cache.get(&self.current_page_key) {
-                    widgets.content_bin.set_child(Some(cached_page.widget()));
-                }
+                //self.current_page_key = key;
+                self.current_page_key = key.clone();
+                widgets.mobile_stack.set_visible_child_name(&key);
+                // if let Some(cached_page) = self.pages_cache.get(&self.current_page_key) {
+                //     widgets.content_bin.set_child(Some(cached_page.widget()));
+                // }
             }
 
             AppModelInput::SetSidebarCollapsed(_is_collapsed) => {}
@@ -758,6 +872,12 @@ impl Component for AppModel {
                     task_id,
                     Action::Search(search_text.clone(), search_category.clone()),
                 ));
+            }
+            AppModelInput::NavigationBreakpointChanged(is_narrow) => {
+                if is_narrow != self.is_narrow {
+                    self.is_narrow = is_narrow;
+                    self.compact_layout = is_narrow;
+                }
             }
         }
 

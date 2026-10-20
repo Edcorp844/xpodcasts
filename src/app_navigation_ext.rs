@@ -17,7 +17,7 @@ use crate::{
     workers::action_worker::worker::ActionResult,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NavigationPage {
     Search,
     Home,
@@ -26,21 +26,22 @@ pub enum NavigationPage {
     Recents,
     Podcast,
     Downloads,
+    Library,
 }
 
 impl NavigationPage {
     pub fn from_name(name: &str) -> Self {
         let localized_name = gettext(name);
 
-        if localized_name == "Search" || name == "Search" {
+        if localized_name == gettext("Search") || name == "Search" {
             Self::Search
         } else if localized_name == gettext("Home") || name == "Home" {
             Self::Home
         } else if localized_name == gettext("New") || name == "New" {
             Self::New
-        } else if localized_name == "Shows" || name == "Shows" {
+        } else if localized_name == gettext("Shows") || name == "Shows" {
             Self::Shows
-        } else if localized_name == "Podcast" || name == "Podcast" {
+        } else if localized_name == gettext("Podcast") || name == "Podcast" {
             Self::Podcast
         } else if localized_name == gettext("Downloaded") || name == "Downloaded" {
             Self::Downloads
@@ -48,6 +49,19 @@ impl NavigationPage {
             Self::Recents
         } else {
             Self::Home
+        }
+    }
+
+    pub fn title(&self) -> String {
+        match self {
+            Self::Search => "Search".to_string(),
+            Self::Home => gettext("Home"),
+            Self::New => gettext("New"),
+            Self::Shows => gettext("Shows"),
+            Self::Podcast => gettext("Podcast"),
+            Self::Downloads => gettext("Downloaded"),
+            Self::Recents => gettext("Recently updated"),
+            Self::Library => gettext("Library"),
         }
     }
 
@@ -60,6 +74,20 @@ impl NavigationPage {
             Self::Podcast => "Podcast".to_string(),
             Self::Downloads => "Downloaded".to_string(),
             Self::Recents => "Recently updated".to_string(),
+            Self::Library => "Library".to_string(),
+        }
+    }
+
+    pub fn icon_name(&self) -> String {
+        match self {
+            Self::Search => "Search".to_string(),
+            Self::Home => "user-home-symbolic".to_string(),
+            Self::New => "view-grid-symbolic".to_string(),
+            Self::Shows => "file-cabinet-symbolic".to_string(),
+            Self::Podcast => "Podcast".to_string(),
+            Self::Downloads => "folder-download-symbolic".to_string(),
+            Self::Recents => "emoji-recent-symbolic".to_string(),
+            Self::Library => "file-library-symbolic".to_string(),
         }
     }
 }

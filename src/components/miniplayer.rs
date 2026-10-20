@@ -250,6 +250,7 @@ impl Component for MiniPlayerModel {
                     gtk::Separator { set_hexpand: true, add_css_class: "spacer" },
                 },
 
+                 
 
                 #[wrap(Some)]
                 set_title_widget =&gtk::Box {

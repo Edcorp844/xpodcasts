@@ -289,7 +289,7 @@ impl FactoryComponent for DownloadedEpisodeListItem {
 
                     gtk::Label {
                         set_label: self.episode.title(),
-                        add_css_class: "title-4",
+                        add_css_class: "heading",
                         set_halign: gtk::Align::Start,
                         set_xalign: 0.0,
                         set_wrap: true

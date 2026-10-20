@@ -21,3 +21,8 @@ install_data(
   symbolic_dir / 'skip-forward-symbolic.svg',
   install_dir: get_option('datadir') / 'icons' / symbolic_dir
 )
+
+install_data(
+  symbolic_dir / 'file-cabinet-symbolic.svg',
+  install_dir: get_option('datadir') / 'icons' / symbolic_dir
+)

@@ -4,5 +4,7 @@ pub mod episode_description_parser;
 pub mod external_controls;
 pub mod gradient_extractor;
 pub mod gst_errors;
-pub mod progress_color;
 pub mod play_list;
+pub mod progress_color;
+pub mod size_class;
+pub mod widget_sizeclass_ext;

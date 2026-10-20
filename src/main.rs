@@ -18,7 +18,6 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-
 use gettextrs::{bindtextdomain, setlocale, textdomain, LocaleCategory};
 use relm4::RelmApp;
 use xpodcasts::{app::AppModel, components::app_menu::AppMenu, config, RUNTIME};
